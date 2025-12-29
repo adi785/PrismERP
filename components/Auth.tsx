@@ -114,7 +114,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                       <div className="p-3 bg-white/60 border border-amber-200 rounded-xl">
                         <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1.5 underline">Quick Fix:</p>
                         <p className="text-[10px] text-slate-600 font-bold mb-3">
-                          Go to <strong>Auth > Providers > Email</strong> and turn <strong>OFF</strong> "Confirm email".
+                          Go to <strong>Auth &gt; Providers &gt; Email</strong> and turn <strong>OFF</strong> "Confirm email".
                         </p>
                         <button 
                           type="button"
