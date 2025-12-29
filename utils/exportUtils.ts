@@ -1,4 +1,3 @@
-
 /**
  * ERP Export/Import Utilities
  * Provides CSV generation compatible with Excel and LibreOffice
@@ -55,4 +54,26 @@ export const parseCSV = (file: File): Promise<any[]> => {
 
 export const triggerPrint = () => {
   window.print();
+};
+
+/**
+ * Converts numbers to Indian Rupee Words
+ * e.g., 1234 -> "One Thousand Two Hundred Thirty Four Rupees Only"
+ */
+export const numberToWords = (num: number): string => {
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const n = ('000000000' + Math.floor(num)).substr(-9);
+  const match = n.match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!match) return '';
+
+  let str = '';
+  str += Number(match[1]) !== 0 ? (a[Number(match[1])] || b[Number(match[1][0])] + ' ' + a[Number(match[1][1])]) + 'Crore ' : '';
+  str += Number(match[2]) !== 0 ? (a[Number(match[2])] || b[Number(match[2][0])] + ' ' + a[Number(match[2][1])]) + 'Lakh ' : '';
+  str += Number(match[3]) !== 0 ? (a[Number(match[3])] || b[Number(match[3][0])] + ' ' + a[Number(match[3][1])]) + 'Thousand ' : '';
+  str += Number(match[4]) !== 0 ? (a[Number(match[4])] || b[Number(match[4][0])] + ' ' + a[Number(match[4][1])]) + 'Hundred ' : '';
+  str += Number(match[5]) !== 0 ? ((str !== '') ? 'and ' : '') + (a[Number(match[5])] || b[Number(match[5][0])] + ' ' + a[Number(match[5][1])]) : '';
+
+  return str.trim() ? str.trim() + ' Rupees Only' : 'Zero Rupees';
 };

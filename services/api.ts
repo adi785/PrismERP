@@ -5,7 +5,6 @@ import { supabase, isSupabaseConfigured } from './supabase';
 class BackendAPI {
   private useLocalStorageFallback = !isSupabaseConfigured;
 
-  // Allow the UI to force local mode if Supabase is misconfigured or blocked
   public enableLocalMode() {
     this.useLocalStorageFallback = true;
     localStorage.setItem('prism_erp_force_local', 'true');
@@ -20,21 +19,16 @@ class BackendAPI {
 
   private handleError(error: any) {
     console.error("API Error Trace:", error);
-    
     const message = error.message || "";
-
     if (message.includes('Email not confirmed')) {
       throw new Error("CONFIRMATION_REQUIRED: Your email has not been confirmed. Please disable 'Confirm Email' in Supabase > Authentication > Providers > Email to bypass this.");
     }
-
     if (error.code === 'PGRST116' || message.includes('relation')) {
       throw new Error("Database tables not found. Please run the SQL schema script in your Supabase dashboard.");
     }
-    
     if (error.code === '42501') {
-      throw new Error("Security Violation (RLS): You are not authorized to create this record.");
+      throw new Error("Security Violation (RLS): You are not authorized to perform this action.");
     }
-    
     throw error;
   }
 
@@ -159,11 +153,8 @@ class BackendAPI {
       const newC = { ...company, id: `c-${Date.now()}` };
       companies.push(newC);
       localStorage.setItem('prism_erp_local_companies', JSON.stringify(companies));
-      
-      // Initialize local seed data
       localStorage.setItem(`prism_erp_ledgers_${newC.id}`, JSON.stringify(INITIAL_LEDGERS));
       localStorage.setItem(`prism_erp_stock_${newC.id}`, JSON.stringify(INITIAL_ITEMS));
-      
       return newC;
     }
 
@@ -325,6 +316,18 @@ class BackendAPI {
     return this.mapStockItem(data);
   }
 
+  async deleteStockItem(id: string): Promise<void> {
+    const cid = localStorage.getItem('prism_erp_company_id');
+    if (this.useLocalStorageFallback) {
+      const stock = await this.getStockItems();
+      const newStock = stock.filter(i => i.id !== id);
+      localStorage.setItem(`prism_erp_stock_${cid}`, JSON.stringify(newStock));
+      return;
+    }
+    const { error } = await supabase!.from('stock_items').delete().eq('id', id);
+    if (error) this.handleError(error);
+  }
+
   async getVouchers(): Promise<Voucher[]> {
     const cid = localStorage.getItem('prism_erp_company_id');
     if (!cid) return [];
@@ -374,9 +377,9 @@ class BackendAPI {
     for (const e of voucher.entries) {
       const { data: l } = await supabase!.from('ledgers').select('*').eq('id', e.ledgerId).single();
       if (l) {
-        let diff = e.debit - e.credit;
-        if (['Liability', 'Income', 'Equity'].includes(l.type)) diff = e.credit - e.debit;
-        await supabase!.from('ledgers').update({ current_balance: l.current_balance + diff }).eq('id', l.id);
+        let diff = Number(e.debit) - Number(e.credit);
+        if (['Liability', 'Income', 'Equity'].includes(l.type)) diff = Number(e.credit) - Number(e.debit);
+        await supabase!.from('ledgers').update({ current_balance: Number(l.current_balance) + diff }).eq('id', l.id);
       }
     }
 
@@ -403,10 +406,10 @@ class BackendAPI {
     return { id: c.id, name: c.name, gstin: c.gstin, financialYear: c.financial_year, address: c.address, ownerId: c.owner_id };
   }
   private mapLedger(l: any): Ledger {
-    return { id: l.id, name: l.name, group: l.group, type: l.type, openingBalance: l.opening_balance, currentBalance: Number(l.current_balance) };
+    return { id: l.id, name: l.name, group: l.group, type: l.type, openingBalance: Number(l.opening_balance), currentBalance: Number(l.current_balance) };
   }
   private mapStockItem(i: any): StockItem {
-    return { id: i.id, name: i.name, sku: i.sku, hsn: i.hsn, unit: i.unit, openingStock: i.opening_stock, currentStock: i.current_stock, purchasePrice: i.purchase_price, salePrice: i.sale_price, gstRate: i.gst_rate };
+    return { id: i.id, name: i.name, sku: i.sku, hsn: i.hsn, unit: i.unit, openingStock: Number(i.opening_stock), currentStock: Number(i.current_stock), purchasePrice: Number(i.purchase_price), salePrice: Number(i.sale_price), gstRate: Number(i.gst_rate) };
   }
   private mapVoucher(v: any): Voucher {
     return { 

@@ -1,4 +1,3 @@
-
 import React, { useState, ErrorInfo, ReactNode } from 'react';
 import { 
   LayoutDashboard, 
@@ -20,7 +19,8 @@ import {
   Receipt,
   AlertTriangle,
   ShoppingCart,
-  BarChart3
+  BarChart3,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useERPStore } from './store/useERPStore';
 import Dashboard from './components/Dashboard';
@@ -33,12 +33,12 @@ import Auth from './components/Auth';
 import Billing from './components/Billing';
 import Purchases from './components/Purchases';
 import Reports from './components/Reports';
+import StockAdjustment from './components/StockAdjustment';
 
-type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'reports';
+type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'reports' | 'stock-adjustment';
 
 // --- Error Boundary for Resilience ---
 interface ErrorBoundaryProps {
-  // Fix: Property 'children' is now optional to prevent missing prop warnings
   children?: ReactNode;
 }
 
@@ -47,7 +47,6 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// Fix: Explicitly use React.Component to resolve issues with 'state' and 'props' not existing on ErrorBoundary
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -63,7 +62,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Fix: this.state.hasError is now correctly resolved
     if (this.state.hasError) {
       return (
         <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-10 text-center">
@@ -73,7 +71,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Component Failure</h1>
           <p className="text-slate-500 mb-8 max-w-md font-medium">A module in the ERP suite has crashed. This might be due to unexpected data or a network interruption.</p>
           <div className="bg-slate-900 p-6 rounded-2xl text-left font-mono text-xs text-blue-400 mb-8 max-w-2xl overflow-auto border border-white/10 shadow-2xl">
-            {/* Fix: this.state.error is now correctly resolved */}
             {this.state.error?.toString()}
           </div>
           <button 
@@ -85,7 +82,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    // Fix: this.props.children is now correctly resolved
     return this.props.children;
   }
 }
@@ -123,6 +119,7 @@ const App: React.FC = () => {
       case 'ledgers': 
         return (role === 'Admin' || role === 'Accountant') ? <LedgerList store={store} /> : <Dashboard store={store} />;
       case 'stock': return <StockList store={store} />;
+      case 'stock-adjustment': return <StockAdjustment store={store} onComplete={() => setCurrentView('stock')} />;
       case 'vouchers': return <VoucherEntry store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'daybook': return <DayBook store={store} />;
       case 'billing': return <Billing store={store} onComplete={() => setCurrentView('daybook')} />;
@@ -138,7 +135,7 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-inter">
         {/* Sidebar */}
-        <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20">
+        <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20 no-print">
           <div className="p-6 border-b border-slate-800 flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">P</div>
             <span className="text-xl font-bold text-white tracking-tight">Prism<span className="text-blue-500">ERP</span></span>
@@ -161,6 +158,7 @@ const App: React.FC = () => {
               <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Chart of Accounts" />
             )}
             <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory Master" />
+            <NavItem active={currentView === 'stock-adjustment'} onClick={() => setCurrentView('stock-adjustment')} icon={<SlidersHorizontal size={18} />} label="Stock Adjustments" />
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Transactions</p>
             <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
@@ -205,7 +203,7 @@ const App: React.FC = () => {
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col overflow-hidden relative">
           {/* Top Header Bar */}
-          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-30 shrink-0 shadow-sm">
+          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-30 shrink-0 shadow-sm no-print">
             <div className="flex items-center gap-4">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <Building2 size={20} className="text-blue-500" />
@@ -257,7 +255,7 @@ const App: React.FC = () => {
           </header>
 
           {/* Dynamic View Content */}
-          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar erp-main-content">
             {renderView()}
           </div>
         </main>

@@ -114,22 +114,39 @@ export const useERPStore = () => {
     setStockItems(prev => prev.map(item => item.id === id ? updated : item));
   }, []);
 
+  const deleteStockItem = useCallback(async (id: string) => {
+    await api.deleteStockItem(id);
+    setStockItems(prev => prev.filter(item => item.id !== id));
+    // Refresh stats in case stock value changes significantly
+    const st = await api.getStats();
+    setStats(st);
+  }, []);
+
   const recordVoucher = useCallback(async (voucherData: Omit<Voucher, 'id'>) => {
     const saved = await api.recordVoucher(voucherData);
     setVouchers(prev => [saved, ...prev]);
     
-    // Complex reconciliation: If it's a purchase bill, we need to update stock master too
+    // Inventory Reconciliation Engine
     if (voucherData.inventory && voucherData.inventory.length > 0) {
+      // Aggregate movements by itemId to handle multiple lines of the same SKU correctly
+      const stockChanges: Record<string, number> = {};
+      
       for (const mov of voucherData.inventory) {
-        const item = stockItems.find(i => i.id === mov.itemId);
+        const delta = mov.type === 'In' ? mov.quantity : -mov.quantity;
+        stockChanges[mov.itemId] = (stockChanges[mov.itemId] || 0) + delta;
+      }
+
+      // Execute updates
+      for (const [itemId, change] of Object.entries(stockChanges)) {
+        const item = stockItems.find(i => i.id === itemId);
         if (item) {
-          const newQty = mov.type === 'In' ? item.currentStock + mov.quantity : item.currentStock - mov.quantity;
-          await api.updateStockItem(item.id, { currentStock: newQty });
+          const newQty = item.currentStock + change;
+          await api.updateStockItem(itemId, { currentStock: newQty });
         }
       }
     }
 
-    // Refresh core states
+    // Comprehensive refresh to sync Ledger Balances, Stock Levels, and Financial Stats
     const [l, s, st] = await Promise.all([api.getLedgers(), api.getStockItems(), api.getStats()]);
     setLedgers(l);
     setStockItems(s);
@@ -154,6 +171,7 @@ export const useERPStore = () => {
     addLedger,
     addStockItem,
     updateStockItem,
+    deleteStockItem,
     addVoucher: recordVoucher,
     refreshData
   };
