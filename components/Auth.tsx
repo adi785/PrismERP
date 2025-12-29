@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield } from 'lucide-react';
+import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2 } from 'lucide-react';
 import { UserRole } from '../types';
 
 const Auth: React.FC<{ store: any }> = ({ store }) => {
@@ -41,7 +40,16 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
       await store.createCompany(newCompany.name, newCompany.gstin, newCompany.fy, newCompany.address);
     } catch (err: any) {
       console.error("Company Creation Error:", err);
-      setError(err.message || "Failed to establish company hub. Please check your database connection.");
+      const msg = err.message || "";
+      if (msg.includes("AUTH_SESSION_EXPIRED")) {
+        setError("Security session expired. Please log in again to establish your business hub.");
+        setTimeout(() => {
+          store.logout();
+          setStep('auth');
+        }, 2000);
+      } else {
+        setError(msg || "Failed to establish company hub. Please check your database connection.");
+      }
       setLoading(false);
     }
   };
@@ -77,9 +85,30 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
 
             <form onSubmit={handleAuth} className="space-y-5">
               {error && (
-                <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-xs font-bold flex items-center gap-3 animate-in slide-in-from-top-2">
-                  <AlertCircle size={14} />
-                  {error}
+                <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-2 ${error.includes('CONFIRMATION_REQUIRED') ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
+                  <div className="flex items-center gap-3 mb-2 font-black text-xs">
+                    <AlertCircle size={16} />
+                    {error.includes('CONFIRMATION_REQUIRED') ? 'Supabase Setup Required' : 'Authentication Error'}
+                  </div>
+                  
+                  {error.includes('CONFIRMATION_REQUIRED') ? (
+                    <div className="space-y-3">
+                      <p className="text-[11px] leading-relaxed font-medium">
+                        Your project requires email confirmation before you can log in.
+                      </p>
+                      <div className="p-3 bg-white/60 border border-amber-200 rounded-xl">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1.5">How to resolve:</p>
+                        <ol className="text-[10px] space-y-1 list-decimal pl-4 font-bold text-slate-600">
+                          <li>Go to <strong>Authentication</strong> > <strong>Providers</strong></li>
+                          <li>Open <strong>Email</strong> settings</li>
+                          <li>Turn OFF <strong>"Confirm email"</strong></li>
+                          <li>Click Save and try again</li>
+                        </ol>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold">{error}</p>
+                  )}
                 </div>
               )}
 
@@ -191,8 +220,8 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
             <div>
               <h1 className="text-4xl font-black text-slate-900 tracking-tight">Business Selection</h1>
               <p className="text-slate-500 mt-2 font-medium flex items-center gap-2">
-                Welcome back, <span className="text-blue-600 font-bold">{store.user.name}</span>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[10px] font-black uppercase tracking-widest">{store.user.role}</span>
+                Welcome back, <span className="text-blue-600 font-bold">{store.user?.name}</span>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[10px] font-black uppercase tracking-widest">{store.user?.role}</span>
               </p>
             </div>
             <button 
@@ -224,7 +253,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
               </button>
             ))}
 
-            {(store.user.role === 'Admin' || store.user.role === 'Accountant') && (
+            {(store.user?.role === 'Admin' || store.user?.role === 'Accountant') && (
               <button 
                 onClick={() => setStep('create')}
                 className="p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 text-left hover:border-blue-300 hover:bg-blue-50 transition-all flex flex-col items-center justify-center gap-6 group min-h-[300px]"

@@ -1,4 +1,3 @@
-
 import { Ledger, StockItem, Voucher, Company, User, UserRole } from '../types';
 import { INITIAL_LEDGERS, INITIAL_ITEMS } from '../constants';
 import { supabase, isSupabaseConfigured } from './supabase';
@@ -8,9 +7,21 @@ class BackendAPI {
 
   private handleError(error: any) {
     console.error("API Error Trace:", error);
-    if (error.code === 'PGRST116' || (error.message && error.message.includes('relation'))) {
+    
+    const message = error.message || "";
+
+    if (message.includes('Email not confirmed')) {
+      throw new Error("CONFIRMATION_REQUIRED: Your email has not been confirmed. Please disable 'Confirm Email' in Supabase > Authentication > Providers > Email to bypass this.");
+    }
+
+    if (error.code === 'PGRST116' || message.includes('relation')) {
       throw new Error("Database tables not found. Please run the SQL schema script in your Supabase dashboard.");
     }
+    
+    if (error.code === '42501') {
+      throw new Error("Security Violation (RLS): You are not authorized to create this record. Ensure the database policies match the required version in services/supabase.ts.");
+    }
+    
     throw error;
   }
 
@@ -19,8 +30,12 @@ class BackendAPI {
     if (this.useLocalStorageFallback) {
       const session = localStorage.getItem('prism_erp_session');
       if (session) {
-        const user = JSON.parse(session);
-        if (user.email === email) return user;
+        try {
+          const user = JSON.parse(session);
+          if (user.email === email) return user;
+        } catch (e) {
+          localStorage.removeItem('prism_erp_session');
+        }
       }
       const user: User = { id: 'local-user', email, name: email.split('@')[0], role: 'Admin' };
       localStorage.setItem('prism_erp_session', JSON.stringify(user));
@@ -28,7 +43,7 @@ class BackendAPI {
     }
 
     const { data, error } = await supabase!.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (error) this.handleError(error);
 
     const { data: profile } = await supabase!.from('profiles').select('*').eq('id', data.user.id).single();
 
@@ -55,7 +70,7 @@ class BackendAPI {
       }
     });
 
-    if (error) throw error;
+    if (error) this.handleError(error);
     if (!data.user) throw new Error("Signup failed");
 
     return {
@@ -69,10 +84,25 @@ class BackendAPI {
   async getCurrentUser(): Promise<User | null> {
     if (this.useLocalStorageFallback) {
       const session = localStorage.getItem('prism_erp_session');
-      return session ? JSON.parse(session) : null;
+      try {
+        return session ? JSON.parse(session) : null;
+      } catch {
+        return null;
+      }
     }
     const { data: { user } } = await supabase!.auth.getUser();
-    if (!user) return null;
+    if (!user) {
+      // Fallback check session to handle intermittent getUser failures
+      const { data: { session } } = await supabase!.auth.getSession();
+      if (!session) return null;
+      const { data: profile } = await supabase!.from('profiles').select('*').eq('id', session.user.id).single();
+      return { 
+        id: session.user.id, 
+        email: session.user.email!, 
+        name: profile?.name || session.user.user_metadata?.name || session.user.email!.split('@')[0],
+        role: (profile?.role as UserRole) || 'Staff'
+      };
+    }
 
     const { data: profile } = await supabase!.from('profiles').select('*').eq('id', user.id).single();
 
@@ -85,7 +115,7 @@ class BackendAPI {
   }
 
   async logout(): Promise<void> {
-    if (!this.useLocalStorageFallback) await supabase!.auth.signOut();
+    if (!this.useLocalStorageFallback && supabase) await supabase.auth.signOut();
     localStorage.removeItem('prism_erp_session');
     localStorage.removeItem('prism_erp_company_id');
     localStorage.removeItem('prism_erp_active_company_cache');
@@ -95,8 +125,12 @@ class BackendAPI {
   async getCompanies(userId: string): Promise<Company[]> {
     if (this.useLocalStorageFallback) {
       const data = localStorage.getItem('prism_erp_local_companies');
-      const companies: Company[] = data ? JSON.parse(data) : [];
-      return companies.filter(c => c.ownerId === userId);
+      try {
+        const companies: Company[] = data ? JSON.parse(data) : [];
+        return companies.filter(c => c.ownerId === userId);
+      } catch {
+        return [];
+      }
     }
     const { data, error } = await supabase!.from('companies').select('*').eq('owner_id', userId);
     if (error) this.handleError(error);
@@ -113,6 +147,14 @@ class BackendAPI {
       return newC;
     }
 
+    let { data: { user } } = await supabase!.auth.getUser();
+    if (!user) {
+       // Deep session validation
+       const { data: { session } } = await supabase!.auth.getSession();
+       if (!session) throw new Error("AUTH_SESSION_EXPIRED: Your security session has expired. Please log in again.");
+       user = session.user;
+    }
+
     const { data, error } = await supabase!
       .from('companies')
       .insert([{
@@ -120,13 +162,12 @@ class BackendAPI {
         gstin: company.gstin,
         financial_year: company.financialYear,
         address: company.address,
-        owner_id: company.ownerId
+        owner_id: user.id
       }])
       .select().single();
 
     if (error) this.handleError(error);
     
-    // Seed initial ledgers
     const seedLedgers = INITIAL_LEDGERS.map(l => ({
       company_id: data.id,
       name: l.name,
@@ -165,9 +206,14 @@ class BackendAPI {
   // --- ERP Data Methods ---
   async getLedgers(): Promise<Ledger[]> {
     const cid = localStorage.getItem('prism_erp_company_id');
+    if (!cid) return [];
     if (this.useLocalStorageFallback) {
       const data = localStorage.getItem(`prism_erp_ledgers_${cid}`);
-      return data ? JSON.parse(data) : INITIAL_LEDGERS;
+      try {
+        return data ? JSON.parse(data) : INITIAL_LEDGERS;
+      } catch {
+        return INITIAL_LEDGERS;
+      }
     }
     const { data, error } = await supabase!.from('ledgers').select('*').eq('company_id', cid);
     if (error) this.handleError(error);
@@ -200,9 +246,14 @@ class BackendAPI {
 
   async getStockItems(): Promise<StockItem[]> {
     const cid = localStorage.getItem('prism_erp_company_id');
+    if (!cid) return [];
     if (this.useLocalStorageFallback) {
       const data = localStorage.getItem(`prism_erp_stock_${cid}`);
-      return data ? JSON.parse(data) : INITIAL_ITEMS;
+      try {
+        return data ? JSON.parse(data) : INITIAL_ITEMS;
+      } catch {
+        return INITIAL_ITEMS;
+      }
     }
     const { data, error } = await supabase!.from('stock_items').select('*').eq('company_id', cid);
     if (error) this.handleError(error);
@@ -257,9 +308,14 @@ class BackendAPI {
 
   async getVouchers(): Promise<Voucher[]> {
     const cid = localStorage.getItem('prism_erp_company_id');
+    if (!cid) return [];
     if (this.useLocalStorageFallback) {
       const data = localStorage.getItem(`prism_erp_vouchers_${cid}`);
-      return data ? JSON.parse(data) : [];
+      try {
+        return data ? JSON.parse(data) : [];
+      } catch {
+        return [];
+      }
     }
     const { data, error } = await supabase!.from('vouchers').select('*, voucher_entries(*)').eq('company_id', cid).order('date', { ascending: false });
     if (error) this.handleError(error);
@@ -296,7 +352,6 @@ class BackendAPI {
     }));
     await supabase!.from('voucher_entries').insert(entries);
     
-    // Update ledger balances sequentially
     for (const e of voucher.entries) {
       const { data: l } = await supabase!.from('ledgers').select('*').eq('id', e.ledgerId).single();
       if (l) {
@@ -329,13 +384,26 @@ class BackendAPI {
     return { id: c.id, name: c.name, gstin: c.gstin, financialYear: c.financial_year, address: c.address, ownerId: c.owner_id };
   }
   private mapLedger(l: any): Ledger {
-    return { id: l.id, name: l.name, group: l.group, type: l.type, openingBalance: l.opening_balance, currentBalance: l.current_balance };
+    return { id: l.id, name: l.name, group: l.group, type: l.type, openingBalance: l.opening_balance, currentBalance: Number(l.current_balance) };
   }
   private mapStockItem(i: any): StockItem {
     return { id: i.id, name: i.name, sku: i.sku, hsn: i.hsn, unit: i.unit, openingStock: i.opening_stock, currentStock: i.current_stock, purchasePrice: i.purchase_price, salePrice: i.sale_price, gstRate: i.gst_rate };
   }
   private mapVoucher(v: any): Voucher {
-    return { id: v.id, number: v.number, date: v.date, type: v.type, narration: v.narration, totalAmount: v.total_amount, gstTotal: v.gst_total, entries: v.voucher_entries.map((e: any) => ({ ledgerId: e.ledger_id, debit: e.debit, credit: e.credit })) };
+    return { 
+      id: v.id, 
+      number: v.number, 
+      date: v.date, 
+      type: v.type, 
+      narration: v.narration, 
+      totalAmount: Number(v.total_amount), 
+      gstTotal: Number(v.gst_total), 
+      entries: (v.voucher_entries || []).map((e: any) => ({ 
+        ledgerId: e.ledger_id, 
+        debit: Number(e.debit), 
+        credit: Number(e.credit) 
+      })) 
+    };
   }
   private mapToStockTable(u: Partial<StockItem>): any {
     const m: any = {};
