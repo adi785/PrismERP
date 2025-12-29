@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -17,7 +16,8 @@ import {
   UserCircle,
   RefreshCw,
   ShieldCheck,
-  Receipt
+  Receipt,
+  AlertTriangle
 } from 'lucide-react';
 import { useERPStore } from './store/useERPStore';
 import Dashboard from './components/Dashboard';
@@ -30,6 +30,55 @@ import Auth from './components/Auth';
 import Billing from './components/Billing';
 
 type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing';
+
+// --- Error Boundary for Resilience ---
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ERP UI Crash:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-10 text-center">
+          <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-rose-200 animate-bounce">
+            <AlertTriangle size={40} />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Component Failure</h1>
+          <p className="text-slate-500 mb-8 max-w-md font-medium">A module in the ERP suite has crashed. This might be due to unexpected data or a network interruption.</p>
+          <div className="bg-slate-900 p-6 rounded-2xl text-left font-mono text-xs text-blue-400 mb-8 max-w-2xl overflow-auto border border-white/10 shadow-2xl">
+            {this.state.error?.toString()}
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-xl shadow-blue-600/20 hover:bg-blue-700 transition-all"
+          >
+            Reset Application
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const App: React.FC = () => {
   const store = useERPStore();
@@ -74,127 +123,129 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-inter">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20">
-        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">P</div>
-          <span className="text-xl font-bold text-white tracking-tight">Prism<span className="text-blue-500">ERP</span></span>
-        </div>
-
-        <nav className="flex-1 py-6 overflow-y-auto px-4 space-y-1">
-          <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Navigation</p>
-          <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Dashboard" />
-          
-          <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Sales & Billing</p>
-          <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Invoice Generator" />
-          
-          <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
-          {(role === 'Admin' || role === 'Accountant') && (
-            <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Chart of Accounts" />
-          )}
-          <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" />
-          
-          <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Transactions</p>
-          <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
-          <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
-          
-          {(role === 'Admin' || role === 'Accountant') && (
-            <>
-              <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Advanced</p>
-              <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Auditor" />
-            </>
-          )}
-        </nav>
-
-        <div className="p-4 bg-slate-950/50">
-          <div 
-            className="flex items-center gap-3 p-2 bg-slate-800/30 rounded-lg cursor-pointer hover:bg-slate-800/50 transition-colors relative"
-            onClick={() => setShowUserMenu(!showUserMenu)}
-          >
-            <div className="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center border border-blue-500/20">
-              <UserCircle size={20} className="text-blue-400" />
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <div className="flex items-center gap-1.5">
-                <p className="text-sm font-bold text-white truncate">{store.user.name}</p>
-                {role === 'Admin' && <ShieldCheck size={12} className="text-amber-500" />}
-              </div>
-              <p className="text-[10px] text-slate-500 truncate font-mono uppercase tracking-tighter">{role}</p>
-            </div>
-            {showUserMenu && (
-              <div className="absolute bottom-full left-0 w-full mb-2 bg-slate-800 border border-slate-700 shadow-2xl rounded-xl p-2 animate-in slide-in-from-bottom-2 duration-200">
-                <button 
-                  onClick={() => store.logout()}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                >
-                  <LogOut size={14} /> Exit Session
-                </button>
-              </div>
-            )}
+    <ErrorBoundary>
+      <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-inter">
+        {/* Sidebar */}
+        <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20">
+          <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">P</div>
+            <span className="text-xl font-bold text-white tracking-tight">Prism<span className="text-blue-500">ERP</span></span>
           </div>
-        </div>
-      </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Top Header Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-30 shrink-0 shadow-sm">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <Building2 size={20} className="text-blue-500" />
-              {store.company.name}
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${store.isSyncing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                {store.isSyncing ? 'Syncing...' : 'Live'}
-              </span>
-            </h2>
-            <div className="relative">
-              <button 
-                onClick={() => setShowQuickActions(!showQuickActions)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all"
-              >
-                <Plus size={14} /> Quick Create <ChevronDown size={12} />
-              </button>
-              {showQuickActions && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowQuickActions(false)}></div>
-                  <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 animate-in slide-in-from-top-2 duration-200">
-                    <QuickActionItem onClick={() => { setCurrentView('billing'); setShowQuickActions(false); }} label="New Invoice" icon={<Receipt size={14} />} />
-                    <QuickActionItem onClick={() => { setCurrentView('vouchers'); setShowQuickActions(false); }} label="Record Voucher" icon={<PlusCircle size={14} />} />
-                    {(role === 'Admin' || role === 'Accountant') && (
-                      <QuickActionItem onClick={() => { setCurrentView('ledgers'); setShowQuickActions(false); }} label="Create Ledger" icon={<BookOpen size={14} />} />
-                    )}
-                    <QuickActionItem onClick={() => { setCurrentView('stock'); setShowQuickActions(false); }} label="New Stock Item" icon={<Package size={14} />} />
-                  </div>
-                </>
+          <nav className="flex-1 py-6 overflow-y-auto px-4 space-y-1">
+            <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Navigation</p>
+            <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Dashboard" />
+            
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Sales & Billing</p>
+            <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Invoice Generator" />
+            
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
+            {(role === 'Admin' || role === 'Accountant') && (
+              <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Chart of Accounts" />
+            )}
+            <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" />
+            
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Transactions</p>
+            <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
+            <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
+            
+            {(role === 'Admin' || role === 'Accountant') && (
+              <>
+                <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Advanced</p>
+                <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Auditor" />
+              </>
+            )}
+          </nav>
+
+          <div className="p-4 bg-slate-950/50">
+            <div 
+              className="flex items-center gap-3 p-2 bg-slate-800/30 rounded-lg cursor-pointer hover:bg-slate-800/50 transition-colors relative"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+            >
+              <div className="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center border border-blue-500/20">
+                <UserCircle size={20} className="text-blue-400" />
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-bold text-white truncate">{store.user.name}</p>
+                  {role === 'Admin' && <ShieldCheck size={12} className="text-amber-500" />}
+                </div>
+                <p className="text-[10px] text-slate-500 truncate font-mono uppercase tracking-tighter">{role}</p>
+              </div>
+              {showUserMenu && (
+                <div className="absolute bottom-full left-0 w-full mb-2 bg-slate-800 border border-slate-700 shadow-2xl rounded-xl p-2 animate-in slide-in-from-bottom-2 duration-200">
+                  <button 
+                    onClick={() => store.logout()}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                  >
+                    <LogOut size={14} /> Exit Session
+                  </button>
+                </div>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input 
-                type="text" 
-                placeholder="Find ledger, voucher, item..." 
-                className="bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm w-72 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
-              />
-            </div>
-            <div className="flex items-center gap-4 border-l pl-6 border-slate-200">
-               <div className="text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Financial Period</p>
-                <p className="text-xs font-bold text-slate-700">01-APR-24 to 31-MAR-25</p>
-               </div>
-               {store.isSyncing && <RefreshCw className="animate-spin text-blue-500" size={16} />}
-            </div>
-          </div>
-        </header>
+        </aside>
 
-        {/* Dynamic View Content */}
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-          {renderView()}
-        </div>
-      </main>
-    </div>
+        {/* Main Content Area */}
+        <main className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Top Header Bar */}
+          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-30 shrink-0 shadow-sm">
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Building2 size={20} className="text-blue-500" />
+                {store.company.name}
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${store.isSyncing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  {store.isSyncing ? 'Syncing...' : 'Live'}
+                </span>
+              </h2>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowQuickActions(!showQuickActions)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all"
+                >
+                  <Plus size={14} /> Quick Create <ChevronDown size={12} />
+                </button>
+                {showQuickActions && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowQuickActions(false)}></div>
+                    <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 animate-in slide-in-from-top-2 duration-200">
+                      <QuickActionItem onClick={() => { setCurrentView('billing'); setShowQuickActions(false); }} label="New Invoice" icon={<Receipt size={14} />} />
+                      <QuickActionItem onClick={() => { setCurrentView('vouchers'); setShowQuickActions(false); }} label="Record Voucher" icon={<PlusCircle size={14} />} />
+                      {(role === 'Admin' || role === 'Accountant') && (
+                        <QuickActionItem onClick={() => { setCurrentView('ledgers'); setShowQuickActions(false); }} label="Create Ledger" icon={<BookOpen size={14} />} />
+                      )}
+                      <QuickActionItem onClick={() => { setCurrentView('stock'); setShowQuickActions(false); }} label="New Stock Item" icon={<Package size={14} />} />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Find ledger, voucher, item..." 
+                  className="bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm w-72 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-4 border-l pl-6 border-slate-200">
+                 <div className="text-right">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Financial Period</p>
+                  <p className="text-xs font-bold text-slate-700">01-APR-24 to 31-MAR-25</p>
+                 </div>
+                 {store.isSyncing && <RefreshCw className="animate-spin text-blue-500" size={16} />}
+              </div>
+            </div>
+          </header>
+
+          {/* Dynamic View Content */}
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+            {renderView()}
+          </div>
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 };
 

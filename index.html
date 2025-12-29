@@ -110,6 +110,15 @@
             background: #94a3b8;
         }
     </style>
+    <!-- GLOBAL PROCESS POLYFILL -->
+    <script>
+        window.process = { 
+            env: { 
+                NODE_ENV: 'production',
+                API_KEY: '' // Will be populated by the environment if available
+            } 
+        };
+    </script>
 <script type="importmap">
 {
   "imports": {
