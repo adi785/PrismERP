@@ -5,6 +5,19 @@ import { supabase, isSupabaseConfigured } from './supabase';
 class BackendAPI {
   private useLocalStorageFallback = !isSupabaseConfigured;
 
+  // Allow the UI to force local mode if Supabase is misconfigured or blocked
+  public enableLocalMode() {
+    this.useLocalStorageFallback = true;
+    localStorage.setItem('prism_erp_force_local', 'true');
+    console.log("PrismERP: Switched to Local Storage Mode");
+  }
+
+  constructor() {
+    if (localStorage.getItem('prism_erp_force_local') === 'true') {
+      this.useLocalStorageFallback = true;
+    }
+  }
+
   private handleError(error: any) {
     console.error("API Error Trace:", error);
     
@@ -19,7 +32,7 @@ class BackendAPI {
     }
     
     if (error.code === '42501') {
-      throw new Error("Security Violation (RLS): You are not authorized to create this record. Ensure the database policies match the required version in services/supabase.ts.");
+      throw new Error("Security Violation (RLS): You are not authorized to create this record.");
     }
     
     throw error;
@@ -90,12 +103,13 @@ class BackendAPI {
         return null;
       }
     }
-    const { data: { user } } = await supabase!.auth.getUser();
+    if (!supabase) return null;
+    
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      // Fallback check session to handle intermittent getUser failures
-      const { data: { session } } = await supabase!.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) return null;
-      const { data: profile } = await supabase!.from('profiles').select('*').eq('id', session.user.id).single();
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
       return { 
         id: session.user.id, 
         email: session.user.email!, 
@@ -104,7 +118,7 @@ class BackendAPI {
       };
     }
 
-    const { data: profile } = await supabase!.from('profiles').select('*').eq('id', user.id).single();
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
 
     return { 
       id: user.id, 
@@ -119,6 +133,7 @@ class BackendAPI {
     localStorage.removeItem('prism_erp_session');
     localStorage.removeItem('prism_erp_company_id');
     localStorage.removeItem('prism_erp_active_company_cache');
+    localStorage.removeItem('prism_erp_force_local');
   }
 
   // --- Company Methods ---
@@ -127,7 +142,7 @@ class BackendAPI {
       const data = localStorage.getItem('prism_erp_local_companies');
       try {
         const companies: Company[] = data ? JSON.parse(data) : [];
-        return companies.filter(c => c.ownerId === userId);
+        return companies.filter(c => c.ownerId === userId || c.id.startsWith('c-'));
       } catch {
         return [];
       }
@@ -144,14 +159,18 @@ class BackendAPI {
       const newC = { ...company, id: `c-${Date.now()}` };
       companies.push(newC);
       localStorage.setItem('prism_erp_local_companies', JSON.stringify(companies));
+      
+      // Initialize local seed data
+      localStorage.setItem(`prism_erp_ledgers_${newC.id}`, JSON.stringify(INITIAL_LEDGERS));
+      localStorage.setItem(`prism_erp_stock_${newC.id}`, JSON.stringify(INITIAL_ITEMS));
+      
       return newC;
     }
 
     let { data: { user } } = await supabase!.auth.getUser();
     if (!user) {
-       // Deep session validation
        const { data: { session } } = await supabase!.auth.getSession();
-       if (!session) throw new Error("AUTH_SESSION_EXPIRED: Your security session has expired. Please log in again.");
+       if (!session) throw new Error("AUTH_SESSION_EXPIRED");
        user = session.user;
     }
 

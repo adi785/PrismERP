@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2, MonitorOff } from 'lucide-react';
 import { UserRole } from '../types';
+import { api } from '../services/api';
 
 const Auth: React.FC<{ store: any }> = ({ store }) => {
   const [email, setEmail] = useState('');
@@ -30,6 +31,20 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBypassToLocal = () => {
+    setLoading(true);
+    api.enableLocalMode();
+    // Re-trigger the login process using local mode
+    store.login(email || "demo@prism.erp", "password")
+      .then(() => {
+        setStep('select');
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
   };
 
   const handleCreateCompany = async (e: React.FormEvent) => {
@@ -88,22 +103,26 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                 <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-2 ${error.includes('CONFIRMATION_REQUIRED') ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
                   <div className="flex items-center gap-3 mb-2 font-black text-xs">
                     <AlertCircle size={16} />
-                    {error.includes('CONFIRMATION_REQUIRED') ? 'Supabase Setup Required' : 'Authentication Error'}
+                    {error.includes('CONFIRMATION_REQUIRED') ? 'Email Verification Required' : 'Authentication Error'}
                   </div>
                   
                   {error.includes('CONFIRMATION_REQUIRED') ? (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       <p className="text-[11px] leading-relaxed font-medium">
-                        Your project requires email confirmation before you can log in.
+                        Supabase requires email confirmation before you can log in.
                       </p>
                       <div className="p-3 bg-white/60 border border-amber-200 rounded-xl">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1.5">How to resolve:</p>
-                        <ol className="text-[10px] space-y-1 list-decimal pl-4 font-bold text-slate-600">
-                          <li>Go to <strong>Authentication</strong> > <strong>Providers</strong></li>
-                          <li>Open <strong>Email</strong> settings</li>
-                          <li>Turn OFF <strong>"Confirm email"</strong></li>
-                          <li>Click Save and try again</li>
-                        </ol>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1.5 underline">Quick Fix:</p>
+                        <p className="text-[10px] text-slate-600 font-bold mb-3">
+                          Go to <strong>Auth > Providers > Email</strong> and turn <strong>OFF</strong> "Confirm email".
+                        </p>
+                        <button 
+                          type="button"
+                          onClick={handleBypassToLocal}
+                          className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm"
+                        >
+                          <MonitorOff size={14} /> Bypass to Offline Mode
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -196,6 +215,17 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                   </>
                 )}
               </button>
+              
+              {/* Emergency switch if the user is stuck on first load */}
+              {!error && mode === 'login' && (
+                <button 
+                  type="button"
+                  onClick={handleBypassToLocal}
+                  className="w-full py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-blue-400 transition-colors text-center"
+                >
+                  Skip Auth & Enter Offline Demo
+                </button>
+              )}
             </form>
 
             <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-center gap-3 grayscale opacity-50">

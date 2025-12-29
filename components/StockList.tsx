@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Package, Search, Plus, Filter, ArrowRight, AlertTriangle, X, Hash, ShoppingBag, Tag, Layers, TrendingUp, AlertCircle, Edit2, Download, Upload, FileSpreadsheet, History, ArrowLeft, ArrowUpRight, ArrowDownRight, Printer, ShoppingCart, MoreVertical, Eye, Copy, Settings2, Trash2 } from 'lucide-react';
 import { StockItem, Voucher } from '../types';
@@ -76,31 +75,6 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
     downloadCSV(store.stockItems, `Inventory_Status_${store.company.name}`);
   };
 
-  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const data = await parseCSV(file);
-      for (const row of data) {
-        if (row.name && row.sku) {
-          await store.addStockItem({
-            name: row.name,
-            sku: row.sku,
-            hsn: row.hsn || '',
-            unit: row.unit || 'Nos',
-            openingStock: Number(row.openingStock) || 0,
-            purchasePrice: Number(row.purchasePrice) || 0,
-            salePrice: Number(row.salePrice) || 0,
-            gstRate: Number(row.gstRate) || 18
-          });
-        }
-      }
-      alert(`Imported ${data.length} items successfully.`);
-    } catch (err) {
-      alert("Failed to parse CSV file.");
-    }
-  };
-
   if (selectedStockItem) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -119,7 +93,6 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
           </div>
         </div>
 
-        {/* Print Ledger Header */}
         <div className="print-only mb-10 pb-8 border-b-2 border-slate-900">
           <h1 className="text-3xl font-black uppercase">{store.company.name}</h1>
           <p className="text-sm font-bold text-slate-500 mt-2 uppercase tracking-widest">Stock Ledger: {selectedStockItem.name}</p>
@@ -218,7 +191,6 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
         </div>
       </div>
 
-      {/* Print View Header for Main List */}
       <div className="print-only mb-10 pb-8 border-b-2 border-slate-900">
         <h1 className="text-3xl font-black uppercase text-slate-900">{store.company.name}</h1>
         <p className="text-sm font-bold text-slate-500 mt-2 uppercase tracking-widest">Consolidated Inventory Valuation Report</p>
@@ -249,41 +221,6 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
         </div>
       </div>
 
-      {/* Main List Table (Printable) */}
-      <div className="print-only mt-10">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-400">
-              <th className="py-4 text-left">SKU / Particulars</th>
-              <th className="py-4 text-center">HSN</th>
-              <th className="py-4 text-right">Available</th>
-              <th className="py-4 text-right">Cost Rate</th>
-              <th className="py-4 text-right">Book Value</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {store.stockItems.map((item: StockItem) => (
-              <tr key={item.id} className="text-sm">
-                <td className="py-4">
-                  <p className="font-bold text-slate-800">{item.name}</p>
-                  <p className="text-[10px] font-mono font-bold text-slate-400 uppercase">{item.sku}</p>
-                </td>
-                <td className="py-4 text-center font-mono text-xs">{item.hsn}</td>
-                <td className="py-4 text-right font-bold">{item.currentStock} {item.unit}</td>
-                <td className="py-4 text-right font-mono text-slate-600">₹{item.purchasePrice.toLocaleString()}</td>
-                <td className="py-4 text-right font-mono font-black text-slate-900">₹{(item.currentStock * item.purchasePrice).toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-slate-900">
-              <td colSpan={4} className="py-4 text-right font-black uppercase text-xs tracking-widest">Total Asset Value</td>
-              <td className="py-4 text-right font-black text-xl text-blue-600">₹{metrics.totalValue.toLocaleString()}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-200 flex gap-4 no-print">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -295,9 +232,6 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
             className="w-full pl-10 pr-4 py-2 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
           />
         </div>
-        <button className="px-4 py-2 bg-white border border-slate-200 rounded-2xl flex items-center gap-2 text-sm font-bold hover:bg-slate-50">
-          <Filter size={16} /> Advanced Filter
-        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 no-print">
@@ -387,6 +321,135 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
           </div>
         ))}
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <Package className="text-blue-600" size={24} />
+                Register New Stock Item (SKU)
+              </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 hover:bg-white hover:shadow rounded-xl transition-all text-slate-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateStockItem} className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Item Name / Description</label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="e.g. MacBook Pro M3 14-inch"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">SKU / Model Number</label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="e.g. MBP-M3-14-SLV"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono font-bold"
+                    value={formData.sku}
+                    onChange={e => setFormData({ ...formData, sku: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">HSN Code</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. 8471"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono font-bold"
+                    value={formData.hsn}
+                    onChange={e => setFormData({ ...formData, hsn: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Unit of Measure</label>
+                  <select 
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold"
+                    value={formData.unit}
+                    onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                  >
+                    <option value="Nos">Numbers (Nos)</option>
+                    <option value="Pcs">Pieces (Pcs)</option>
+                    <option value="Box">Boxes</option>
+                    <option value="Kgs">Kilograms</option>
+                    <option value="Mtr">Meters</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">GST Rate (%)</label>
+                  <input 
+                    type="number"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold"
+                    value={formData.gstRate}
+                    onChange={e => setFormData({ ...formData, gstRate: Number(e.target.value) })}
+                  />
+                </div>
+
+                <div className="col-span-2 grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Purchase Price</label>
+                    <input 
+                      type="number"
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold"
+                      value={formData.purchasePrice || ''}
+                      onChange={e => setFormData({ ...formData, purchasePrice: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sale Price</label>
+                    <input 
+                      type="number"
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold"
+                      value={formData.salePrice || ''}
+                      onChange={e => setFormData({ ...formData, salePrice: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Opening Stock</label>
+                    <input 
+                      type="number"
+                      className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold"
+                      value={formData.openingStock || ''}
+                      onChange={e => setFormData({ ...formData, openingStock: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-4">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-4 px-6 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-4 px-6 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all"
+                >
+                  Confirm & Save SKU
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
