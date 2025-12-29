@@ -1,4 +1,5 @@
-import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
+
+import React, { useState, ErrorInfo, ReactNode } from 'react';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -17,7 +18,9 @@ import {
   RefreshCw,
   ShieldCheck,
   Receipt,
-  AlertTriangle
+  AlertTriangle,
+  ShoppingCart,
+  BarChart3
 } from 'lucide-react';
 import { useERPStore } from './store/useERPStore';
 import Dashboard from './components/Dashboard';
@@ -28,12 +31,15 @@ import DayBook from './components/DayBook';
 import AIAnalyst from './components/AIAnalyst';
 import Auth from './components/Auth';
 import Billing from './components/Billing';
+import Purchases from './components/Purchases';
+import Reports from './components/Reports';
 
-type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing';
+type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'reports';
 
 // --- Error Boundary for Resilience ---
 interface ErrorBoundaryProps {
-  children: ReactNode;
+  // Fix: Property 'children' is now optional to prevent missing prop warnings
+  children?: ReactNode;
 }
 
 interface ErrorBoundaryState {
@@ -41,7 +47,8 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Explicitly use React.Component to resolve issues with 'state' and 'props' not existing on ErrorBoundary
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -56,6 +63,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
+    // Fix: this.state.hasError is now correctly resolved
     if (this.state.hasError) {
       return (
         <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-10 text-center">
@@ -65,6 +73,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
           <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Component Failure</h1>
           <p className="text-slate-500 mb-8 max-w-md font-medium">A module in the ERP suite has crashed. This might be due to unexpected data or a network interruption.</p>
           <div className="bg-slate-900 p-6 rounded-2xl text-left font-mono text-xs text-blue-400 mb-8 max-w-2xl overflow-auto border border-white/10 shadow-2xl">
+            {/* Fix: this.state.error is now correctly resolved */}
             {this.state.error?.toString()}
           </div>
           <button 
@@ -76,6 +85,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         </div>
       );
     }
+    // Fix: this.props.children is now correctly resolved
     return this.props.children;
   }
 }
@@ -116,6 +126,8 @@ const App: React.FC = () => {
       case 'vouchers': return <VoucherEntry store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'daybook': return <DayBook store={store} />;
       case 'billing': return <Billing store={store} onComplete={() => setCurrentView('daybook')} />;
+      case 'purchases': return <Purchases store={store} onComplete={() => setCurrentView('daybook')} />;
+      case 'reports': return <Reports store={store} />;
       case 'ai': 
         return (role === 'Admin' || role === 'Accountant') ? <AIAnalyst store={store} /> : <Dashboard store={store} />;
       default: return <Dashboard store={store} />;
@@ -136,18 +148,22 @@ const App: React.FC = () => {
             <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Navigation</p>
             <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Dashboard" />
             
-            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Sales & Billing</p>
-            <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Invoice Generator" />
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Commercial Ops</p>
+            <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Sales Invoicing" />
+            <NavItem active={currentView === 'purchases'} onClick={() => setCurrentView('purchases')} icon={<ShoppingCart size={18} />} label="Purchase Bills" />
             
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Reports</p>
+            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} icon={<BarChart3 size={18} />} label="Financial Statements" />
+            <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
+
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
             {(role === 'Admin' || role === 'Accountant') && (
               <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Chart of Accounts" />
             )}
-            <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" />
+            <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory Master" />
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Transactions</p>
             <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
-            <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
             
             {(role === 'Admin' || role === 'Accountant') && (
               <>
@@ -210,6 +226,7 @@ const App: React.FC = () => {
                     <div className="fixed inset-0 z-40" onClick={() => setShowQuickActions(false)}></div>
                     <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 animate-in slide-in-from-top-2 duration-200">
                       <QuickActionItem onClick={() => { setCurrentView('billing'); setShowQuickActions(false); }} label="New Invoice" icon={<Receipt size={14} />} />
+                      <QuickActionItem onClick={() => { setCurrentView('purchases'); setShowQuickActions(false); }} label="Record Bill" icon={<ShoppingCart size={14} />} />
                       <QuickActionItem onClick={() => { setCurrentView('vouchers'); setShowQuickActions(false); }} label="Record Voucher" icon={<PlusCircle size={14} />} />
                       {(role === 'Admin' || role === 'Accountant') && (
                         <QuickActionItem onClick={() => { setCurrentView('ledgers'); setShowQuickActions(false); }} label="Create Ledger" icon={<BookOpen size={14} />} />

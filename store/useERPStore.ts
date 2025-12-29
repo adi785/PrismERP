@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { Ledger, StockItem, Voucher, Company, User, UserRole } from '../types';
 import { api } from '../services/api';
@@ -118,9 +117,24 @@ export const useERPStore = () => {
   const recordVoucher = useCallback(async (voucherData: Omit<Voucher, 'id'>) => {
     const saved = await api.recordVoucher(voucherData);
     setVouchers(prev => [saved, ...prev]);
-    api.getStats().then(setStats);
-    api.getLedgers().then(setLedgers);
-  }, []);
+    
+    // Complex reconciliation: If it's a purchase bill, we need to update stock master too
+    if (voucherData.inventory && voucherData.inventory.length > 0) {
+      for (const mov of voucherData.inventory) {
+        const item = stockItems.find(i => i.id === mov.itemId);
+        if (item) {
+          const newQty = mov.type === 'In' ? item.currentStock + mov.quantity : item.currentStock - mov.quantity;
+          await api.updateStockItem(item.id, { currentStock: newQty });
+        }
+      }
+    }
+
+    // Refresh core states
+    const [l, s, st] = await Promise.all([api.getLedgers(), api.getStockItems(), api.getStats()]);
+    setLedgers(l);
+    setStockItems(s);
+    setStats(st);
+  }, [stockItems]);
 
   return {
     user,
