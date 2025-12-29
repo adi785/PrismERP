@@ -1,10 +1,12 @@
 
 export type AccountType = 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense';
+export type UserRole = 'Admin' | 'Accountant' | 'Staff';
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  role: UserRole;
 }
 
 export interface Ledger {

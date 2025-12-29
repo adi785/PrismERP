@@ -14,7 +14,10 @@ import {
   Plus,
   ChevronDown,
   LogOut,
-  UserCircle
+  UserCircle,
+  RefreshCw,
+  ShieldCheck,
+  Receipt
 } from 'lucide-react';
 import { useERPStore } from './store/useERPStore';
 import Dashboard from './components/Dashboard';
@@ -24,8 +27,9 @@ import VoucherEntry from './components/VoucherEntry';
 import DayBook from './components/DayBook';
 import AIAnalyst from './components/AIAnalyst';
 import Auth from './components/Auth';
+import Billing from './components/Billing';
 
-type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai';
+type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing';
 
 const App: React.FC = () => {
   const store = useERPStore();
@@ -33,11 +37,17 @@ const App: React.FC = () => {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  if (store.loading) {
+  if (store.loading && !store.user) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-        <Loader2 className="animate-spin text-blue-600" size={40} />
-        <p className="text-slate-500 font-medium animate-pulse tracking-tight">Accessing Secure Vault...</p>
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 gap-6">
+        <div className="relative">
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center font-bold text-white shadow-2xl animate-bounce">P</div>
+          <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-2xl animate-pulse"></div>
+        </div>
+        <div className="text-center">
+          <h2 className="text-white font-bold text-lg tracking-tight">PrismERP</h2>
+          <p className="text-slate-500 text-xs font-medium uppercase tracking-[0.2em] mt-1">Securing Connection...</p>
+        </div>
       </div>
     );
   }
@@ -46,14 +56,19 @@ const App: React.FC = () => {
     return <Auth store={store} />;
   }
 
+  const role = store.user.role;
+
   const renderView = () => {
     switch(currentView) {
       case 'dashboard': return <Dashboard store={store} />;
-      case 'ledgers': return <LedgerList store={store} />;
+      case 'ledgers': 
+        return (role === 'Admin' || role === 'Accountant') ? <LedgerList store={store} /> : <Dashboard store={store} />;
       case 'stock': return <StockList store={store} />;
       case 'vouchers': return <VoucherEntry store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'daybook': return <DayBook store={store} />;
-      case 'ai': return <AIAnalyst store={store} />;
+      case 'billing': return <Billing store={store} onComplete={() => setCurrentView('daybook')} />;
+      case 'ai': 
+        return (role === 'Admin' || role === 'Accountant') ? <AIAnalyst store={store} /> : <Dashboard store={store} />;
       default: return <Dashboard store={store} />;
     }
   };
@@ -69,18 +84,27 @@ const App: React.FC = () => {
 
         <nav className="flex-1 py-6 overflow-y-auto px-4 space-y-1">
           <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Navigation</p>
-          <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Gateway of ERP" />
+          <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Dashboard" />
+          
+          <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Sales & Billing</p>
+          <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Invoice Generator" />
           
           <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
-          <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Chart of Accounts" />
+          {(role === 'Admin' || role === 'Accountant') && (
+            <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Chart of Accounts" />
+          )}
           <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" />
           
           <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Transactions</p>
           <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
           <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
           
-          <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Advanced</p>
-          <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Auditor" />
+          {(role === 'Admin' || role === 'Accountant') && (
+            <>
+              <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Advanced</p>
+              <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Auditor" />
+            </>
+          )}
         </nav>
 
         <div className="p-4 bg-slate-950/50">
@@ -92,8 +116,11 @@ const App: React.FC = () => {
               <UserCircle size={20} className="text-blue-400" />
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-bold text-white truncate">{store.user.name}</p>
-              <p className="text-[10px] text-slate-500 truncate font-mono uppercase tracking-tighter">FY {store.company.financialYear}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-bold text-white truncate">{store.user.name}</p>
+                {role === 'Admin' && <ShieldCheck size={12} className="text-amber-500" />}
+              </div>
+              <p className="text-[10px] text-slate-500 truncate font-mono uppercase tracking-tighter">{role}</p>
             </div>
             {showUserMenu && (
               <div className="absolute bottom-full left-0 w-full mb-2 bg-slate-800 border border-slate-700 shadow-2xl rounded-xl p-2 animate-in slide-in-from-bottom-2 duration-200">
@@ -117,7 +144,9 @@ const App: React.FC = () => {
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Building2 size={20} className="text-blue-500" />
               {store.company.name}
-              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">Live</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${store.isSyncing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                {store.isSyncing ? 'Syncing...' : 'Live'}
+              </span>
             </h2>
             <div className="relative">
               <button 
@@ -130,8 +159,11 @@ const App: React.FC = () => {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowQuickActions(false)}></div>
                   <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 animate-in slide-in-from-top-2 duration-200">
+                    <QuickActionItem onClick={() => { setCurrentView('billing'); setShowQuickActions(false); }} label="New Invoice" icon={<Receipt size={14} />} />
                     <QuickActionItem onClick={() => { setCurrentView('vouchers'); setShowQuickActions(false); }} label="Record Voucher" icon={<PlusCircle size={14} />} />
-                    <QuickActionItem onClick={() => { setCurrentView('ledgers'); setShowQuickActions(false); }} label="Create Ledger" icon={<BookOpen size={14} />} />
+                    {(role === 'Admin' || role === 'Accountant') && (
+                      <QuickActionItem onClick={() => { setCurrentView('ledgers'); setShowQuickActions(false); }} label="Create Ledger" icon={<BookOpen size={14} />} />
+                    )}
                     <QuickActionItem onClick={() => { setCurrentView('stock'); setShowQuickActions(false); }} label="New Stock Item" icon={<Package size={14} />} />
                   </div>
                 </>
@@ -152,7 +184,7 @@ const App: React.FC = () => {
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Financial Period</p>
                 <p className="text-xs font-bold text-slate-700">01-APR-24 to 31-MAR-25</p>
                </div>
-               {store.loading && <Loader2 className="animate-spin text-blue-500" size={16} />}
+               {store.isSyncing && <RefreshCw className="animate-spin text-blue-500" size={16} />}
             </div>
           </div>
         </header>

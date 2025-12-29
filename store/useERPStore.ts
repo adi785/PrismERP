@@ -1,6 +1,6 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { Ledger, StockItem, Voucher, Company, User } from '../types';
+import { Ledger, StockItem, Voucher, Company, User, UserRole } from '../types';
 import { api } from '../services/api';
 
 export const useERPStore = () => {
@@ -9,24 +9,38 @@ export const useERPStore = () => {
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
-  const [company, setCompany] = useState<Company | null>(null);
+  const [company, setCompany] = useState<Company | null>(() => {
+    // Attempt to hydrate basic company info from cache for instant UI shell
+    const cached = localStorage.getItem('prism_erp_active_company_cache');
+    return cached ? JSON.parse(cached) : null;
+  });
   const [stats, setStats] = useState({ totalSales: 0, totalPurchases: 0, bankBalance: 0, cashBalance: 0 });
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const refreshData = useCallback(async () => {
-    setLoading(true);
+  // Optimized refresh: can accept a user object to skip network round-trip for current user
+  const refreshData = useCallback(async (providedUser?: User | null) => {
+    setIsSyncing(true);
     try {
-      const currentUser = await api.getCurrentUser();
+      // 1. Resolve User
+      const currentUser = providedUser !== undefined ? providedUser : await api.getCurrentUser();
       setUser(currentUser);
 
       if (currentUser) {
-        const comps = await api.getCompanies(currentUser.id);
+        // 2. Fetch companies and selected company in parallel
+        const [comps, activeCompany] = await Promise.all([
+          api.getCompanies(currentUser.id),
+          api.getSelectedCompany()
+        ]);
+        
         setCompanies(comps);
-
-        const activeCompany = await api.getSelectedCompany();
         setCompany(activeCompany);
 
+        // Cache the company metadata for the next boot
         if (activeCompany) {
+          localStorage.setItem('prism_erp_active_company_cache', JSON.stringify(activeCompany));
+          
+          // 3. Fetch operational data in parallel - don't block the UI if we already have the shell
           const [l, s, v, st] = await Promise.all([
             api.getLedgers(),
             api.getStockItems(),
@@ -43,6 +57,7 @@ export const useERPStore = () => {
       console.error("ERP Store Refresh Error:", error);
     } finally {
       setLoading(false);
+      setIsSyncing(false);
     }
   }, []);
 
@@ -51,13 +66,23 @@ export const useERPStore = () => {
   }, [refreshData]);
 
   const login = async (email: string, password: string) => {
+    // Step 1: Auth
     const loggedInUser = await api.login(email, password);
+    // Step 2: Immediate state update to trigger UI transition
     setUser(loggedInUser);
-    await refreshData();
+    // Step 3: Background refresh without waiting for user fetch
+    return refreshData(loggedInUser);
+  };
+
+  const signup = async (email: string, password: string, name: string, role: UserRole) => {
+    const newUser = await api.signup(email, password, name, role);
+    setUser(newUser);
+    return refreshData(newUser);
   };
 
   const logout = async () => {
     await api.logout();
+    localStorage.removeItem('prism_erp_active_company_cache');
     setUser(null);
     setCompany(null);
     setLedgers([]);
@@ -66,36 +91,49 @@ export const useERPStore = () => {
   };
 
   const createCompany = async (name: string, gstin: string, financialYear: string, address: string) => {
-    if (!user) return;
+    if (!user) throw new Error("Unauthorized: User session not found.");
+    
+    // Perform the heavy lifting
     const newCompany = await api.createCompany({ name, gstin, financialYear, address, ownerId: user.id });
+    
+    // Update local context for selection
     await api.selectCompany(newCompany.id);
-    await refreshData();
+    
+    // Update local state to trigger App.tsx re-render immediately
+    setCompany(newCompany);
+    setCompanies(prev => [...prev, newCompany]);
+    
+    // Perform the data sync in the background
+    return refreshData(user);
   };
 
   const selectCompany = async (companyId: string) => {
     await api.selectCompany(companyId);
-    await refreshData();
+    return refreshData(user);
   };
 
   const addLedger = useCallback(async (newLedger: Omit<Ledger, 'id' | 'currentBalance'>) => {
-    await api.addLedger(newLedger);
-    await refreshData();
-  }, [refreshData]);
+    const saved = await api.addLedger(newLedger);
+    setLedgers(prev => [...prev, saved]);
+  }, []);
 
   const addStockItem = useCallback(async (item: Omit<StockItem, 'id' | 'currentStock'>) => {
-    await api.addStockItem(item);
-    await refreshData();
-  }, [refreshData]);
+    const saved = await api.addStockItem(item);
+    setStockItems(prev => [...prev, saved]);
+  }, []);
 
   const updateStockItem = useCallback(async (id: string, updates: Partial<StockItem>) => {
-    await api.updateStockItem(id, updates);
-    await refreshData();
-  }, [refreshData]);
+    const updated = await api.updateStockItem(id, updates);
+    setStockItems(prev => prev.map(item => item.id === id ? updated : item));
+  }, []);
 
-  const recordVoucher = useCallback(async (voucher: Omit<Voucher, 'id'>) => {
-    await api.recordVoucher(voucher);
-    await refreshData();
-  }, [refreshData]);
+  const recordVoucher = useCallback(async (voucherData: Omit<Voucher, 'id'>) => {
+    const saved = await api.recordVoucher(voucherData);
+    setVouchers(prev => [saved, ...prev]);
+    // Background background re-sync for balances
+    api.getStats().then(setStats);
+    api.getLedgers().then(setLedgers);
+  }, []);
 
   return {
     user,
@@ -106,7 +144,9 @@ export const useERPStore = () => {
     vouchers,
     stats,
     loading,
+    isSyncing,
     login,
+    signup,
     logout,
     createCompany,
     selectCompany,

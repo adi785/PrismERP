@@ -1,242 +1,349 @@
 
-import { Ledger, StockItem, Voucher, Company, User, ERPData } from '../types';
+import { Ledger, StockItem, Voucher, Company, User, UserRole } from '../types';
 import { INITIAL_LEDGERS, INITIAL_ITEMS } from '../constants';
-
-const USERS_KEY = 'prism_erp_users';
-const COMPANIES_KEY = 'prism_erp_companies';
-const SESSION_KEY = 'prism_erp_session';
-const DATA_PREFIX = 'prism_erp_data_';
-
-interface UserWithPassword extends User {
-  password?: string;
-}
+import { supabase, isSupabaseConfigured } from './supabase';
 
 class BackendAPI {
-  private getUsers(): UserWithPassword[] {
-    const data = localStorage.getItem(USERS_KEY);
-    return data ? JSON.parse(data) : [];
-  }
+  private useLocalStorageFallback = !isSupabaseConfigured;
 
-  private saveUsers(users: UserWithPassword[]): void {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  }
-
-  private getAllCompanies(): Company[] {
-    const data = localStorage.getItem(COMPANIES_KEY);
-    return data ? JSON.parse(data) : [];
-  }
-
-  private saveAllCompanies(companies: Company[]): void {
-    localStorage.setItem(COMPANIES_KEY, JSON.stringify(companies));
-  }
-
-  private getCompanyData(companyId: string): ERPData {
-    const data = localStorage.getItem(`${DATA_PREFIX}${companyId}`);
-    if (!data) {
-      // For a fresh company, we only provide the standard base ledgers
-      const initial: ERPData = {
-        ledgers: [...INITIAL_LEDGERS], 
-        stockItems: [...INITIAL_ITEMS],
-        vouchers: []
-      };
-      this.saveCompanyData(companyId, initial);
-      return initial;
+  private handleError(error: any) {
+    console.error("API Error Trace:", error);
+    if (error.code === 'PGRST116' || (error.message && error.message.includes('relation'))) {
+      throw new Error("Database tables not found. Please run the SQL schema script in your Supabase dashboard.");
     }
-    return JSON.parse(data);
+    throw error;
   }
 
-  private saveCompanyData(companyId: string, data: ERPData): void {
-    localStorage.setItem(`${DATA_PREFIX}${companyId}`, JSON.stringify(data));
-  }
-
-  // Auth Methods
+  // --- Auth Methods ---
   async login(email: string, password: string): Promise<User> {
-    const users = this.getUsers();
-    let user = users.find(u => u.email === email);
-    
-    if (!user) {
-      // Create new user if they don't exist (simulated registration)
-      user = { 
-        id: `u-${Date.now()}`, 
-        email, 
-        name: email.split('@')[0],
-        password: password 
-      };
-      users.push(user);
-      this.saveUsers(users);
-    } else {
-      // Validate password if user exists
-      if (user.password !== password) {
-        throw new Error("Invalid credentials. Please check your password.");
+    if (this.useLocalStorageFallback) {
+      const session = localStorage.getItem('prism_erp_session');
+      if (session) {
+        const user = JSON.parse(session);
+        if (user.email === email) return user;
       }
+      const user: User = { id: 'local-user', email, name: email.split('@')[0], role: 'Admin' };
+      localStorage.setItem('prism_erp_session', JSON.stringify(user));
+      return user;
     }
-    
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.id, companyId: null }));
-    return { id: user.id, email: user.email, name: user.name };
-  }
 
-  async getCurrentUser(): Promise<User | null> {
-    const session = localStorage.getItem(SESSION_KEY);
-    if (!session) return null;
-    try {
-      const { userId } = JSON.parse(session);
-      return this.getUsers().find(u => u.id === userId) || null;
-    } catch {
-      return null;
-    }
-  }
+    const { data, error } = await supabase!.auth.signInWithPassword({ email, password });
+    if (error) throw error;
 
-  async logout(): Promise<void> {
-    localStorage.removeItem(SESSION_KEY);
-  }
+    const { data: profile } = await supabase!.from('profiles').select('*').eq('id', data.user.id).single();
 
-  // Company Methods
-  async getCompanies(userId: string): Promise<Company[]> {
-    return this.getAllCompanies().filter(c => c.ownerId === userId);
-  }
-
-  async createCompany(company: Omit<Company, 'id'>): Promise<Company> {
-    const companies = this.getAllCompanies();
-    const newCompany: Company = { ...company, id: `c-${Date.now()}` };
-    companies.push(newCompany);
-    this.saveAllCompanies(companies);
-    return newCompany;
-  }
-
-  async selectCompany(companyId: string): Promise<void> {
-    const sessionStr = localStorage.getItem(SESSION_KEY);
-    if (sessionStr) {
-      const session = JSON.parse(sessionStr);
-      session.companyId = companyId;
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    }
-  }
-
-  async getSelectedCompany(): Promise<Company | null> {
-    const sessionStr = localStorage.getItem(SESSION_KEY);
-    if (!sessionStr) return null;
-    try {
-      const { companyId } = JSON.parse(sessionStr);
-      if (!companyId) return null;
-      return this.getAllCompanies().find(c => c.id === companyId) || null;
-    } catch {
-      return null;
-    }
-  }
-
-  // ERP Data Methods (Scoped by selected company)
-  private async getActiveCompanyId(): Promise<string> {
-    const sessionStr = localStorage.getItem(SESSION_KEY);
-    if (!sessionStr) throw new Error("No active session");
-    const { companyId } = JSON.parse(sessionStr);
-    if (!companyId) throw new Error("No company selected");
-    return companyId;
-  }
-
-  async getLedgers(): Promise<Ledger[]> {
-    const cid = await this.getActiveCompanyId();
-    return this.getCompanyData(cid).ledgers;
-  }
-
-  async addLedger(ledger: Omit<Ledger, 'id' | 'currentBalance'>): Promise<Ledger> {
-    const cid = await this.getActiveCompanyId();
-    const data = this.getCompanyData(cid);
-    const newLedger: Ledger = {
-      ...ledger,
-      id: `l-${Date.now()}`,
-      currentBalance: ledger.openingBalance
+    return {
+      id: data.user!.id,
+      email: data.user!.email!,
+      name: profile?.name || email.split('@')[0],
+      role: (profile?.role as UserRole) || 'Staff',
     };
-    data.ledgers.push(newLedger);
-    this.saveCompanyData(cid, data);
-    return newLedger;
   }
 
-  async getStockItems(): Promise<StockItem[]> {
-    const cid = await this.getActiveCompanyId();
-    return this.getCompanyData(cid).stockItems;
-  }
+  async signup(email: string, password: string, name: string, role: UserRole = 'Staff'): Promise<User> {
+    if (this.useLocalStorageFallback) {
+      const user: User = { id: 'local-user-' + Date.now(), email, name, role };
+      localStorage.setItem('prism_erp_session', JSON.stringify(user));
+      return user;
+    }
 
-  async addStockItem(item: Omit<StockItem, 'id' | 'currentStock'>): Promise<StockItem> {
-    const cid = await this.getActiveCompanyId();
-    const data = this.getCompanyData(cid);
-    const newItem: StockItem = {
-      ...item,
-      id: `i-${Date.now()}`,
-      currentStock: item.openingStock
-    };
-    data.stockItems.push(newItem);
-    this.saveCompanyData(cid, data);
-    return newItem;
-  }
-
-  async updateStockItem(id: string, updates: Partial<StockItem>): Promise<StockItem> {
-    const cid = await this.getActiveCompanyId();
-    const data = this.getCompanyData(cid);
-    const index = data.stockItems.findIndex(i => i.id === id);
-    if (index === -1) throw new Error("Stock item not found");
-    
-    data.stockItems[index] = { ...data.stockItems[index], ...updates };
-    this.saveCompanyData(cid, data);
-    return data.stockItems[index];
-  }
-
-  async getVouchers(): Promise<Voucher[]> {
-    const cid = await this.getActiveCompanyId();
-    return this.getCompanyData(cid).vouchers;
-  }
-
-  async recordVoucher(voucher: Omit<Voucher, 'id'>): Promise<Voucher> {
-    const cid = await this.getActiveCompanyId();
-    const data = this.getCompanyData(cid);
-    const id = `v-${Date.now()}`;
-    const newVoucher: Voucher = { ...voucher, id };
-
-    newVoucher.entries.forEach(entry => {
-      const ledger = data.ledgers.find(l => l.id === entry.ledgerId);
-      if (ledger) {
-        let balanceChange = entry.debit - entry.credit;
-        if (['Liability', 'Income', 'Equity'].includes(ledger.type)) {
-          balanceChange = entry.credit - entry.debit;
-        }
-        ledger.currentBalance += balanceChange;
+    const { data, error } = await supabase!.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name, role }
       }
     });
 
-    if (newVoucher.inventory) {
-      newVoucher.inventory.forEach(move => {
-        const item = data.stockItems.find(i => i.id === move.itemId);
-        if (item) {
-          const stockChange = move.type === 'In' ? move.quantity : -move.quantity;
-          item.currentStock += stockChange;
-        }
-      });
+    if (error) throw error;
+    if (!data.user) throw new Error("Signup failed");
+
+    return {
+      id: data.user.id,
+      email: data.user.email!,
+      name: name,
+      role: role,
+    };
+  }
+
+  async getCurrentUser(): Promise<User | null> {
+    if (this.useLocalStorageFallback) {
+      const session = localStorage.getItem('prism_erp_session');
+      return session ? JSON.parse(session) : null;
+    }
+    const { data: { user } } = await supabase!.auth.getUser();
+    if (!user) return null;
+
+    const { data: profile } = await supabase!.from('profiles').select('*').eq('id', user.id).single();
+
+    return { 
+      id: user.id, 
+      email: user.email!, 
+      name: profile?.name || user.user_metadata?.name || user.email!.split('@')[0],
+      role: (profile?.role as UserRole) || 'Staff'
+    };
+  }
+
+  async logout(): Promise<void> {
+    if (!this.useLocalStorageFallback) await supabase!.auth.signOut();
+    localStorage.removeItem('prism_erp_session');
+    localStorage.removeItem('prism_erp_company_id');
+    localStorage.removeItem('prism_erp_active_company_cache');
+  }
+
+  // --- Company Methods ---
+  async getCompanies(userId: string): Promise<Company[]> {
+    if (this.useLocalStorageFallback) {
+      const data = localStorage.getItem('prism_erp_local_companies');
+      const companies: Company[] = data ? JSON.parse(data) : [];
+      return companies.filter(c => c.ownerId === userId);
+    }
+    const { data, error } = await supabase!.from('companies').select('*').eq('owner_id', userId);
+    if (error) this.handleError(error);
+    return (data || []).map(c => this.mapCompany(c));
+  }
+
+  async createCompany(company: Omit<Company, 'id'>): Promise<Company> {
+    if (this.useLocalStorageFallback) {
+      const companiesStr = localStorage.getItem('prism_erp_local_companies');
+      const companies = companiesStr ? JSON.parse(companiesStr) : [];
+      const newC = { ...company, id: `c-${Date.now()}` };
+      companies.push(newC);
+      localStorage.setItem('prism_erp_local_companies', JSON.stringify(companies));
+      return newC;
     }
 
-    data.vouchers.unshift(newVoucher);
-    this.saveCompanyData(cid, data);
-    return newVoucher;
+    const { data, error } = await supabase!
+      .from('companies')
+      .insert([{
+        name: company.name,
+        gstin: company.gstin,
+        financial_year: company.financialYear,
+        address: company.address,
+        owner_id: company.ownerId
+      }])
+      .select().single();
+
+    if (error) this.handleError(error);
+    
+    // Seed initial ledgers
+    const seedLedgers = INITIAL_LEDGERS.map(l => ({
+      company_id: data.id,
+      name: l.name,
+      group: l.group,
+      type: l.type,
+      opening_balance: l.openingBalance,
+      current_balance: l.currentBalance
+    }));
+
+    const { error: seedError } = await supabase!.from('ledgers').insert(seedLedgers);
+    if (seedError) this.handleError(seedError);
+
+    return this.mapCompany(data);
+  }
+
+  async selectCompany(companyId: string): Promise<void> {
+    localStorage.setItem('prism_erp_company_id', companyId);
+  }
+
+  async getSelectedCompany(): Promise<Company | null> {
+    const companyId = localStorage.getItem('prism_erp_company_id');
+    if (!companyId) return null;
+
+    if (this.useLocalStorageFallback) {
+      const user = await this.getCurrentUser();
+      if (!user) return null;
+      const companies = await this.getCompanies(user.id);
+      return companies.find(c => c.id === companyId) || null;
+    }
+
+    const { data, error } = await supabase!.from('companies').select('*').eq('id', companyId).maybeSingle();
+    if (error) return null;
+    return data ? this.mapCompany(data) : null;
+  }
+
+  // --- ERP Data Methods ---
+  async getLedgers(): Promise<Ledger[]> {
+    const cid = localStorage.getItem('prism_erp_company_id');
+    if (this.useLocalStorageFallback) {
+      const data = localStorage.getItem(`prism_erp_ledgers_${cid}`);
+      return data ? JSON.parse(data) : INITIAL_LEDGERS;
+    }
+    const { data, error } = await supabase!.from('ledgers').select('*').eq('company_id', cid);
+    if (error) this.handleError(error);
+    return (data || []).map(l => this.mapLedger(l));
+  }
+
+  async addLedger(ledger: Omit<Ledger, 'id' | 'currentBalance'>): Promise<Ledger> {
+    const cid = localStorage.getItem('prism_erp_company_id');
+    if (this.useLocalStorageFallback) {
+      const ledgers = await this.getLedgers();
+      const newL = { ...ledger, id: `l-${Date.now()}`, currentBalance: ledger.openingBalance };
+      ledgers.push(newL);
+      localStorage.setItem(`prism_erp_ledgers_${cid}`, JSON.stringify(ledgers));
+      return newL;
+    }
+    const { data, error } = await supabase!
+      .from('ledgers')
+      .insert([{
+        company_id: cid,
+        name: ledger.name,
+        group: ledger.group,
+        type: ledger.type,
+        opening_balance: ledger.openingBalance,
+        current_balance: ledger.openingBalance
+      }])
+      .select().single();
+    if (error) this.handleError(error);
+    return this.mapLedger(data);
+  }
+
+  async getStockItems(): Promise<StockItem[]> {
+    const cid = localStorage.getItem('prism_erp_company_id');
+    if (this.useLocalStorageFallback) {
+      const data = localStorage.getItem(`prism_erp_stock_${cid}`);
+      return data ? JSON.parse(data) : INITIAL_ITEMS;
+    }
+    const { data, error } = await supabase!.from('stock_items').select('*').eq('company_id', cid);
+    if (error) this.handleError(error);
+    return (data || []).map(i => this.mapStockItem(i));
+  }
+
+  async addStockItem(item: Omit<StockItem, 'id' | 'currentStock'>): Promise<StockItem> {
+    const cid = localStorage.getItem('prism_erp_company_id');
+    if (this.useLocalStorageFallback) {
+      const stock = await this.getStockItems();
+      const newI = { ...item, id: `i-${Date.now()}`, currentStock: item.openingStock };
+      stock.push(newI);
+      localStorage.setItem(`prism_erp_stock_${cid}`, JSON.stringify(stock));
+      return newI;
+    }
+    const { data, error } = await supabase!
+      .from('stock_items')
+      .insert([{
+        company_id: cid,
+        name: item.name,
+        sku: item.sku,
+        hsn: item.hsn,
+        unit: item.unit,
+        opening_stock: item.openingStock,
+        current_stock: item.openingStock,
+        purchase_price: item.purchasePrice,
+        sale_price: item.salePrice,
+        gst_rate: item.gstRate
+      }])
+      .select().single();
+    if (error) this.handleError(error);
+    return this.mapStockItem(data);
+  }
+
+  async updateStockItem(id: string, updates: Partial<StockItem>): Promise<StockItem> {
+    if (this.useLocalStorageFallback) {
+      const cid = localStorage.getItem('prism_erp_company_id');
+      const stock = await this.getStockItems();
+      const idx = stock.findIndex(i => i.id === id);
+      if (idx > -1) {
+        stock[idx] = { ...stock[idx], ...updates };
+        localStorage.setItem(`prism_erp_stock_${cid}`, JSON.stringify(stock));
+        return stock[idx];
+      }
+      throw new Error("Item not found");
+    }
+    const mapped = this.mapToStockTable(updates);
+    const { data, error } = await supabase!.from('stock_items').update(mapped).eq('id', id).select().single();
+    if (error) this.handleError(error);
+    return this.mapStockItem(data);
+  }
+
+  async getVouchers(): Promise<Voucher[]> {
+    const cid = localStorage.getItem('prism_erp_company_id');
+    if (this.useLocalStorageFallback) {
+      const data = localStorage.getItem(`prism_erp_vouchers_${cid}`);
+      return data ? JSON.parse(data) : [];
+    }
+    const { data, error } = await supabase!.from('vouchers').select('*, voucher_entries(*)').eq('company_id', cid).order('date', { ascending: false });
+    if (error) this.handleError(error);
+    return (data || []).map(v => this.mapVoucher(v));
+  }
+
+  async recordVoucher(voucher: Omit<Voucher, 'id'>): Promise<Voucher> {
+    const cid = localStorage.getItem('prism_erp_company_id');
+    if (this.useLocalStorageFallback) {
+      const vchs = await this.getVouchers();
+      const newV = { ...voucher, id: `v-${Date.now()}` };
+      vchs.unshift(newV);
+      localStorage.setItem(`prism_erp_vouchers_${cid}`, JSON.stringify(vchs));
+      return newV;
+    }
+
+    const { data: vData, error: vError } = await supabase!.from('vouchers').insert([{
+      company_id: cid,
+      number: voucher.number,
+      date: voucher.date,
+      type: voucher.type,
+      narration: voucher.narration,
+      total_amount: voucher.totalAmount,
+      gst_total: voucher.gstTotal
+    }]).select().single();
+
+    if (vError) this.handleError(vError);
+
+    const entries = voucher.entries.map(e => ({
+      voucher_id: vData.id,
+      ledger_id: e.ledgerId,
+      debit: e.debit,
+      credit: e.credit
+    }));
+    await supabase!.from('voucher_entries').insert(entries);
+    
+    // Update ledger balances sequentially
+    for (const e of voucher.entries) {
+      const { data: l } = await supabase!.from('ledgers').select('*').eq('id', e.ledgerId).single();
+      if (l) {
+        let diff = e.debit - e.credit;
+        if (['Liability', 'Income', 'Equity'].includes(l.type)) diff = e.credit - e.debit;
+        await supabase!.from('ledgers').update({ current_balance: l.current_balance + diff }).eq('id', l.id);
+      }
+    }
+
+    return { ...voucher, id: vData.id };
   }
 
   async getStats() {
     try {
-      const cid = await this.getActiveCompanyId();
-      const data = this.getCompanyData(cid);
-      const totalSales = data.vouchers
-        .filter(v => v.type === 'Sales')
-        .reduce((sum, v) => sum + v.totalAmount, 0);
-      const totalPurchases = data.vouchers
-        .filter(v => v.type === 'Purchase')
-        .reduce((sum, v) => sum + v.totalAmount, 0);
-      const bankBalance = data.ledgers
-        .filter(l => l.group === 'Bank Accounts')
-        .reduce((sum, l) => sum + l.currentBalance, 0);
-      const cashBalance = data.ledgers
-        .find(l => l.name.toLowerCase().includes('cash'))?.currentBalance || 0;
-
-      return { totalSales, totalPurchases, bankBalance, cashBalance };
+      const vchs = await this.getVouchers();
+      const ldgs = await this.getLedgers();
+      return {
+        totalSales: vchs.filter(v => v.type === 'Sales').reduce((sum, v) => sum + v.totalAmount, 0),
+        totalPurchases: vchs.filter(v => v.type === 'Purchase').reduce((sum, v) => sum + v.totalAmount, 0),
+        bankBalance: ldgs.filter(l => l.group === 'Bank Accounts').reduce((sum, l) => sum + l.currentBalance, 0),
+        cashBalance: ldgs.find(l => l.name.toLowerCase().includes('cash'))?.currentBalance || 0
+      };
     } catch {
       return { totalSales: 0, totalPurchases: 0, bankBalance: 0, cashBalance: 0 };
     }
+  }
+
+  // --- Mappers ---
+  private mapCompany(c: any): Company {
+    return { id: c.id, name: c.name, gstin: c.gstin, financialYear: c.financial_year, address: c.address, ownerId: c.owner_id };
+  }
+  private mapLedger(l: any): Ledger {
+    return { id: l.id, name: l.name, group: l.group, type: l.type, openingBalance: l.opening_balance, currentBalance: l.current_balance };
+  }
+  private mapStockItem(i: any): StockItem {
+    return { id: i.id, name: i.name, sku: i.sku, hsn: i.hsn, unit: i.unit, openingStock: i.opening_stock, currentStock: i.current_stock, purchasePrice: i.purchase_price, salePrice: i.sale_price, gstRate: i.gst_rate };
+  }
+  private mapVoucher(v: any): Voucher {
+    return { id: v.id, number: v.number, date: v.date, type: v.type, narration: v.narration, totalAmount: v.total_amount, gstTotal: v.gst_total, entries: v.voucher_entries.map((e: any) => ({ ledgerId: e.ledger_id, debit: e.debit, credit: e.credit })) };
+  }
+  private mapToStockTable(u: Partial<StockItem>): any {
+    const m: any = {};
+    if (u.name) m.name = u.name;
+    if (u.purchasePrice !== undefined) m.purchase_price = u.purchasePrice;
+    if (u.salePrice !== undefined) m.sale_price = u.salePrice;
+    if (u.currentStock !== undefined) m.current_stock = u.currentStock;
+    return m;
   }
 }
 

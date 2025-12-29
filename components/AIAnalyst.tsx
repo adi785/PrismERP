@@ -15,8 +15,8 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `
-        You are an expert ERP Auditor and Financial Advisor. 
+      
+      const promptContext = `
         Current ERP Context:
         Company: ${store.company.name}
         Ledgers: ${JSON.stringify(store.ledgers.map((l:any) => ({ name: l.name, balance: l.currentBalance })))}
@@ -24,17 +24,21 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
         Inventory: ${JSON.stringify(store.stockItems.map((i:any) => ({ name: i.name, stock: i.currentStock })))}
 
         User Question: ${query}
-        
-        Provide a concise, professional financial analysis or answer based on the ERP data above. If suggesting improvements, be specific to the data.
       `;
 
+      // Switched to gemini-3-flash-preview for significantly faster response times
       const result = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: prompt
+        contents: promptContext,
+        config: {
+          systemInstruction: "You are an expert ERP Auditor and Financial Advisor. Provide a concise, professional financial analysis or answer based on the provided ERP data. If suggesting improvements, be specific to the data.",
+          temperature: 0.7,
+        }
       });
 
       setResponse(result.text || "I couldn't generate a response. Please try rephrasing.");
     } catch (err) {
+      console.error("AI Analysis Error:", err);
       setResponse("System offline: AI Analysis requires a valid API configuration.");
     } finally {
       setLoading(false);
