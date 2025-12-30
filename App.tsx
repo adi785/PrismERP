@@ -249,7 +249,7 @@ const App: React.FC = () => {
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Tools</p>
             <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
-            <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai'} icon={<BrainCircuit size={18} />} label="AI Analyst" />
+            <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Analyst" />
           </nav>
 
           <div className="p-4 bg-slate-950/50">
