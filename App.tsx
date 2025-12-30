@@ -25,7 +25,11 @@ import {
   Command,
   Scale,
   UploadCloud,
-  TrendingUp
+  TrendingUp,
+  Database,
+  Code2,
+  Copy,
+  Check
 } from 'lucide-react';
 import { useERPStore } from './store/useERPStore';
 import Dashboard from './components/Dashboard';
@@ -42,6 +46,7 @@ import StockAdjustment from './components/StockAdjustment';
 import TaxCenter from './components/TaxCenter';
 import CommandPalette from './components/CommandPalette';
 import ImportCenter from './components/ImportCenter';
+import FloatingAssistant from './components/FloatingAssistant';
 
 type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'reports' | 'stock-adjustment' | 'tax-center' | 'import-center';
 
@@ -61,23 +66,96 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
   render() {
     if (this.state.hasError) {
+      const isDbError = this.state.error?.message.includes("Database tables not found");
+      
       return (
-        <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-10 text-center">
-          <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-rose-200 animate-bounce">
-            <AlertTriangle size={40} />
+        <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-10 text-center font-inter">
+          <div className={`w-20 h-20 ${isDbError ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'} rounded-3xl flex items-center justify-center mb-6 shadow-xl animate-bounce`}>
+            {isDbError ? <Database size={40} /> : <AlertTriangle size={40} />}
           </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Component Failure</h1>
-          <p className="text-slate-500 mb-8 max-w-md font-medium">A module in the ERP suite has crashed.</p>
-          <div className="bg-slate-900 p-6 rounded-2xl text-left font-mono text-xs text-blue-400 mb-8 max-w-2xl overflow-auto border border-white/10 shadow-2xl">
-            {this.state.error?.toString()}
+          <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">
+            {isDbError ? 'Database Setup Required' : 'Component Failure'}
+          </h1>
+          <p className="text-slate-500 mb-8 max-w-md font-medium leading-relaxed">
+            {isDbError 
+              ? "The Supabase backend is connected, but the internal accounting tables haven't been created yet." 
+              : "A critical module in the ERP suite has encountered an unexpected runtime error."}
+          </p>
+          
+          {isDbError ? (
+            <DbSetupHelper />
+          ) : (
+            <div className="bg-slate-900 p-6 rounded-2xl text-left font-mono text-xs text-blue-400 mb-8 max-w-2xl overflow-auto border border-white/10 shadow-2xl">
+              {this.state.error?.toString()}
+            </div>
+          )}
+          
+          <div className="flex gap-4">
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20"
+            >
+              Restart Suite
+            </button>
+            {isDbError && (
+              <button 
+                onClick={() => {
+                  localStorage.setItem('prism_erp_force_local', 'true');
+                  window.location.reload();
+                }}
+                className="px-8 py-4 bg-blue-600 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20"
+              >
+                Switch to Local Mode
+              </button>
+            )}
           </div>
-          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-xl shadow-blue-600/20 hover:bg-blue-700 transition-all">Reset Application</button>
         </div>
       );
     }
     return this.props.children;
   }
 }
+
+const DbSetupHelper = () => {
+  const [copied, setCopied] = useState(false);
+  const sql = `-- PRISMERP SQL SCHEMA
+CREATE TABLE IF NOT EXISTS public.profiles (id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE, name TEXT, role TEXT);
+CREATE TABLE IF NOT EXISTS public.companies (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), created_at TIMESTAMPTZ DEFAULT now(), name TEXT NOT NULL, gstin TEXT, financial_year TEXT, address TEXT, owner_id UUID REFERENCES auth.users(id));
+CREATE TABLE IF NOT EXISTS public.ledgers (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), company_id UUID REFERENCES companies(id) ON DELETE CASCADE, name TEXT NOT NULL, "group" TEXT NOT NULL, type TEXT NOT NULL, opening_balance DECIMAL DEFAULT 0, current_balance DECIMAL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS public.stock_items (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), company_id UUID REFERENCES companies(id) ON DELETE CASCADE, name TEXT NOT NULL, sku TEXT NOT NULL, hsn TEXT, unit TEXT DEFAULT 'Nos', opening_stock DECIMAL DEFAULT 0, current_stock DECIMAL DEFAULT 0, purchase_price DECIMAL DEFAULT 0, sale_price DECIMAL DEFAULT 0, gst_rate DECIMAL DEFAULT 18);
+CREATE TABLE IF NOT EXISTS public.vouchers (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), company_id UUID REFERENCES companies(id) ON DELETE CASCADE, number TEXT NOT NULL, date DATE NOT NULL, type TEXT NOT NULL, narration TEXT, total_amount DECIMAL DEFAULT 0, gst_total DECIMAL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS public.voucher_entries (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), voucher_id UUID REFERENCES vouchers(id) ON DELETE CASCADE, ledger_id UUID REFERENCES ledgers(id) ON DELETE CASCADE, debit DECIMAL DEFAULT 0, credit DECIMAL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS public.inventory_movements (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), voucher_id UUID REFERENCES vouchers(id) ON DELETE CASCADE, item_id UUID REFERENCES stock_items(id) ON DELETE CASCADE, quantity DECIMAL NOT NULL, rate DECIMAL, amount DECIMAL, type TEXT);`;
+
+  const copy = () => {
+    navigator.clipboard.writeText(sql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="bg-white rounded-[2rem] border border-slate-200 p-8 mb-8 w-full max-w-2xl text-left shadow-xl">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 text-slate-800 font-black uppercase text-xs">
+          <Code2 size={16} className="text-blue-600" />
+          Setup SQL Script
+        </div>
+        <button 
+          onClick={copy}
+          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 transition-all"
+        >
+          {copied ? <><Check size={14} className="text-emerald-500" /> Copied</> : <><Copy size={14} /> Copy SQL</>}
+        </button>
+      </div>
+      <div className="bg-slate-50 p-4 rounded-xl font-mono text-[10px] text-slate-600 max-h-48 overflow-y-auto border border-slate-100 leading-relaxed">
+        {sql}
+      </div>
+      <p className="mt-4 text-[10px] font-medium text-slate-400">
+        Copy this code and paste it into the <strong>SQL Editor</strong> in your Supabase dashboard, then click "Run".
+      </p>
+    </div>
+  );
+};
 
 const App: React.FC = () => {
   const store = useERPStore();
@@ -218,6 +296,9 @@ const App: React.FC = () => {
           </header>
 
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar erp-main-content">{renderView()}</div>
+          
+          {/* Floating AI Assistant Integration */}
+          <FloatingAssistant store={store} />
         </main>
       </div>
     </ErrorBoundary>

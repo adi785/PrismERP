@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2, MonitorOff, Send } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2, MonitorOff, Send, Check } from 'lucide-react';
 import { UserRole } from '../types';
 import { api } from '../services/api';
 
@@ -17,8 +17,26 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
   const [newCompany, setNewCompany] = useState({ name: '', gstin: '', fy: '2024-25', address: '' });
   const [loading, setLoading] = useState(false);
 
+  // Password Validation Logic
+  const passwordRequirements = useMemo(() => {
+    return {
+      hasUpper: /[A-Z]/.test(password),
+      hasLower: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecial: /[^A-Za-z0-9]/.test(password),
+      hasLength: password.length >= 8
+    };
+  }, [password]);
+
+  const isPasswordValid = useMemo(() => {
+    if (mode === 'login') return password.length > 0;
+    return Object.values(passwordRequirements).every(Boolean);
+  }, [passwordRequirements, mode, password]);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isPasswordValid) return;
+
     setLoading(true);
     setError(null);
     try {
@@ -34,7 +52,12 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
       if (msg.includes('CONFIRMATION_REQUIRED') || msg.toLowerCase().includes('email not confirmed')) {
         setIsAwaitingVerification(true);
       } else {
-        setError(msg || "Authentication failed. Please check your credentials.");
+        // Clean up common Supabase technical error messages for the user
+        let friendlyMsg = msg;
+        if (msg.includes('at least one character of each')) {
+          friendlyMsg = "Security Policy: Password must include Uppercase, Lowercase, and Numbers.";
+        }
+        setError(friendlyMsg || "Authentication failed. Please check your credentials.");
       }
     } finally {
       setLoading(false);
@@ -163,7 +186,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                           <input 
                             type="text" 
                             required 
-                            placeholder="John Doe" 
+                            placeholder="Aditya F" 
                             value={name}
                             onChange={e => setName(e.target.value)}
                             className="w-full pl-12 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 placeholder-slate-300"
@@ -205,13 +228,13 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Password</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Secret Password</label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                       <input 
                         type={showPassword ? "text" : "password"} 
                         required 
-                        placeholder="••••••••" 
+                        placeholder="Ex: Strong@123" 
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         className="w-full pl-12 pr-12 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 placeholder-slate-300"
@@ -224,16 +247,27 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
+
+                    {/* Password Policy Indicator for Signup */}
+                    {mode === 'signup' && password.length > 0 && (
+                      <div className="mt-4 grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-2">
+                        <Requirement met={passwordRequirements.hasUpper} label="A-Z" />
+                        <Requirement met={passwordRequirements.hasLower} label="a-z" />
+                        <Requirement met={passwordRequirements.hasNumber} label="0-9" />
+                        <Requirement met={passwordRequirements.hasSpecial} label="Special" />
+                        <Requirement met={passwordRequirements.hasLength} label="8+ chars" />
+                      </div>
+                    )}
                   </div>
 
                   <button 
                     type="submit" 
-                    disabled={loading}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-2xl shadow-blue-600/30 group disabled:opacity-50 mt-4"
+                    disabled={loading || (mode === 'signup' && !isPasswordValid)}
+                    className={`w-full py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-2xl group disabled:opacity-50 mt-4 ${isPasswordValid || mode === 'login' ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                   >
                     {loading ? <Loader2 className="animate-spin" size={20} /> : (
                       <>
-                        {mode === 'login' ? 'Authenticate' : 'Register Account'} 
+                        {mode === 'login' ? 'Authenticate' : 'Establish Account'} 
                         <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                       </>
                     )}
@@ -431,5 +465,12 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
     </div>
   );
 };
+
+const Requirement: React.FC<{ met: boolean, label: string }> = ({ met, label }) => (
+  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${met ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-300'}`}>
+    {met ? <Check size={10} /> : <div className="w-2.5 h-2.5 rounded-full border-2 border-slate-200" />}
+    {label}
+  </div>
+);
 
 export default Auth;

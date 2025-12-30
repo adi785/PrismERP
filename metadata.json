@@ -2,6 +2,7 @@
   "name": "PrismERP - Advanced Business Suite",
   "description": "A high-performance, GST-compliant ERP system for accounting and inventory management, inspired by professional financial software but built for the modern web.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "microphone"
   ]
 }

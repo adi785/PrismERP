@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { Ledger, StockItem, Voucher, Company, User, UserRole } from '../types';
 import { api } from '../services/api';
@@ -28,31 +29,46 @@ export const useERPStore = () => {
       setUser(currentUser);
 
       if (currentUser) {
-        const [comps, activeCompany] = await Promise.all([
-          api.getCompanies(currentUser.id),
-          api.getSelectedCompany()
-        ]);
-        
-        setCompanies(comps);
-        setCompany(activeCompany);
-
-        if (activeCompany) {
-          localStorage.setItem('prism_erp_active_company_cache', JSON.stringify(activeCompany));
-          
-          const [l, s, v, st] = await Promise.all([
-            api.getLedgers(),
-            api.getStockItems(),
-            api.getVouchers(),
-            api.getStats()
+        // We try-catch the database calls individually or as a block 
+        // to handle the "tables not found" error gracefully in the UI context.
+        try {
+          const [comps, activeCompany] = await Promise.all([
+            api.getCompanies(currentUser.id),
+            api.getSelectedCompany()
           ]);
-          setLedgers(l);
-          setStockItems(s);
-          setVouchers(v);
-          setStats(st);
+          
+          setCompanies(comps);
+          setCompany(activeCompany);
+
+          if (activeCompany) {
+            localStorage.setItem('prism_erp_active_company_cache', JSON.stringify(activeCompany));
+            
+            const [l, s, v, st] = await Promise.all([
+              api.getLedgers(),
+              api.getStockItems(),
+              api.getVouchers(),
+              api.getStats()
+            ]);
+            setLedgers(l);
+            setStockItems(s);
+            setVouchers(v);
+            setStats(st);
+          }
+        } catch (dbError: any) {
+          console.error("Database schema error detected:", dbError);
+          // If the error is about missing tables, we throw it up to the Error Boundary
+          // which is now equipped to handle it with the Setup Assistant.
+          if (dbError.message.includes("Database tables not found")) {
+            throw dbError; 
+          }
         }
       }
     } catch (error) {
       console.error("ERP Store Refresh Error:", error);
+      // Propagate critical errors (like missing tables) so ErrorBoundary can catch them
+      if (error instanceof Error && error.message.includes("Database tables not found")) {
+        throw error;
+      }
     } finally {
       setLoading(false);
       setIsSyncing(false);
@@ -60,7 +76,10 @@ export const useERPStore = () => {
   }, []);
 
   useEffect(() => {
-    refreshData();
+    refreshData().catch(e => {
+      // Re-trigger loading state or handle if boot failed
+      setLoading(false);
+    });
   }, [refreshData]);
 
   const login = async (email: string, password: string) => {
