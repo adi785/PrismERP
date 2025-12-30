@@ -29,7 +29,8 @@ import {
   Database,
   Code2,
   Copy,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { useERPStore } from './store/useERPStore';
 import Dashboard from './components/Dashboard';
@@ -47,8 +48,9 @@ import TaxCenter from './components/TaxCenter';
 import CommandPalette from './components/CommandPalette';
 import ImportCenter from './components/ImportCenter';
 import FloatingAssistant from './components/FloatingAssistant';
+import ProductReturns from './components/ProductReturns';
 
-type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'reports' | 'stock-adjustment' | 'tax-center' | 'import-center';
+type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'returns' | 'reports' | 'stock-adjustment' | 'tax-center' | 'import-center';
 
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
@@ -206,6 +208,7 @@ const App: React.FC = () => {
       case 'daybook': return <DayBook store={store} />;
       case 'billing': return <Billing store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'purchases': return <Purchases store={store} onComplete={() => setCurrentView('daybook')} />;
+      case 'returns': return <ProductReturns store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'reports': return <Reports store={store} />;
       case 'tax-center': return <TaxCenter store={store} />;
       case 'import-center': return <ImportCenter store={store} onComplete={() => setCurrentView('ledgers')} />;
@@ -232,6 +235,7 @@ const App: React.FC = () => {
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Operations</p>
             <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Sales Invoicing" />
             <NavItem active={currentView === 'purchases'} onClick={() => setCurrentView('purchases')} icon={<ShoppingCart size={18} />} label="Purchase Bills" />
+            <NavItem active={currentView === 'returns'} onClick={() => setCurrentView('returns')} icon={<RotateCcw size={18} />} label="Returns & Notes" />
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Compliance</p>
             <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" />
@@ -245,7 +249,7 @@ const App: React.FC = () => {
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Tools</p>
             <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
-            <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Analyst" />
+            <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai'} icon={<BrainCircuit size={18} />} label="AI Analyst" />
           </nav>
 
           <div className="p-4 bg-slate-950/50">
