@@ -1,3 +1,4 @@
+
 import { Ledger, StockItem, Voucher, Company, User, UserRole } from '../types';
 import { INITIAL_LEDGERS, INITIAL_ITEMS } from '../constants';
 import { supabase, isSupabaseConfigured } from './supabase';
@@ -339,7 +340,13 @@ class BackendAPI {
         return [];
       }
     }
-    const { data, error } = await supabase!.from('vouchers').select('*, voucher_entries(*)').eq('company_id', cid).order('date', { ascending: false });
+    // Updated to include inventory_movements join
+    const { data, error } = await supabase!
+      .from('vouchers')
+      .select('*, voucher_entries(*), inventory_movements(*)')
+      .eq('company_id', cid)
+      .order('date', { ascending: false });
+    
     if (error) this.handleError(error);
     return (data || []).map(v => this.mapVoucher(v));
   }
@@ -366,6 +373,7 @@ class BackendAPI {
 
     if (vError) this.handleError(vError);
 
+    // Save ledger entries
     const entries = voucher.entries.map(e => ({
       voucher_id: vData.id,
       ledger_id: e.ledgerId,
@@ -373,7 +381,21 @@ class BackendAPI {
       credit: e.credit
     }));
     await supabase!.from('voucher_entries').insert(entries);
+
+    // Save inventory movements (New)
+    if (voucher.inventory && voucher.inventory.length > 0) {
+      const movements = voucher.inventory.map(m => ({
+        voucher_id: vData.id,
+        item_id: m.itemId,
+        quantity: m.quantity,
+        rate: m.rate,
+        amount: m.amount,
+        type: m.type
+      }));
+      await supabase!.from('inventory_movements').insert(movements);
+    }
     
+    // Update ledger balances
     for (const e of voucher.entries) {
       const { data: l } = await supabase!.from('ledgers').select('*').eq('id', e.ledgerId).single();
       if (l) {
@@ -424,7 +446,14 @@ class BackendAPI {
         ledgerId: e.ledger_id, 
         debit: Number(e.debit), 
         credit: Number(e.credit) 
-      })) 
+      })),
+      inventory: (v.inventory_movements || []).map((m: any) => ({
+        itemId: m.item_id,
+        quantity: Number(m.quantity),
+        rate: Number(m.rate),
+        amount: Number(m.amount),
+        type: m.type as 'In' | 'Out'
+      }))
     };
   }
   private mapToStockTable(u: Partial<StockItem>): any {

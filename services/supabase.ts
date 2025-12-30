@@ -1,7 +1,8 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * PRISMERP SUPABASE SQL SCHEMA (V2 - Granular Policies)
+ * PRISMERP SUPABASE SQL SCHEMA (V3 - Audit Ready)
  * Copy and Paste the following into your Supabase SQL Editor:
  * 
  * -- 0. Profiles Table
@@ -82,6 +83,17 @@ import { createClient } from '@supabase/supabase-js';
  *   debit DECIMAL DEFAULT 0,
  *   credit DECIMAL DEFAULT 0
  * );
+ *
+ * -- 6. Inventory Movements Table (New)
+ * CREATE TABLE IF NOT EXISTS public.inventory_movements (
+ *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   voucher_id UUID REFERENCES vouchers(id) ON DELETE CASCADE,
+ *   item_id UUID REFERENCES stock_items(id) ON DELETE CASCADE,
+ *   quantity DECIMAL NOT NULL,
+ *   rate DECIMAL,
+ *   amount DECIMAL,
+ *   type TEXT CHECK (type IN ('In', 'Out'))
+ * );
  * 
  * -- Enable RLS
  * ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -90,34 +102,24 @@ import { createClient } from '@supabase/supabase-js';
  * ALTER TABLE public.stock_items ENABLE ROW LEVEL SECURITY;
  * ALTER TABLE public.vouchers ENABLE ROW LEVEL SECURITY;
  * ALTER TABLE public.voucher_entries ENABLE ROW LEVEL SECURITY;
+ * ALTER TABLE public.inventory_movements ENABLE ROW LEVEL SECURITY;
  * 
- * -- Detailed Granular Policies for Companies
+ * -- Policies for Companies
  * CREATE POLICY "Users can view their own companies" ON public.companies FOR SELECT USING (auth.uid() = owner_id);
  * CREATE POLICY "Users can create their own companies" ON public.companies FOR INSERT WITH CHECK (auth.uid() = owner_id);
  * CREATE POLICY "Users can update their own companies" ON public.companies FOR UPDATE USING (auth.uid() = owner_id);
  * CREATE POLICY "Users can delete their own companies" ON public.companies FOR DELETE USING (auth.uid() = owner_id);
  * 
- * -- Policies for Ledgers (Cascaded via Company Check)
- * CREATE POLICY "Manage ledgers via company ownership" ON public.ledgers FOR ALL 
- *   USING (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()))
- *   WITH CHECK (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()));
- *
- * -- Repeat for Stock, Vouchers, and Entries
- * CREATE POLICY "Manage stock via company ownership" ON public.stock_items FOR ALL 
- *   USING (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()))
- *   WITH CHECK (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()));
- *
- * CREATE POLICY "Manage vouchers via company ownership" ON public.vouchers FOR ALL 
- *   USING (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()))
- *   WITH CHECK (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()));
- *
- * CREATE POLICY "Manage entries via company ownership" ON public.voucher_entries FOR ALL 
- *   USING (voucher_id IN (SELECT id FROM vouchers v JOIN companies c ON v.company_id = c.id WHERE c.owner_id = auth.uid()))
- *   WITH CHECK (voucher_id IN (SELECT id FROM vouchers v JOIN companies c ON v.company_id = c.id WHERE c.owner_id = auth.uid()));
+ * -- Policies for Ledgers, Stock, Vouchers
+ * CREATE POLICY "Manage ledgers via company ownership" ON public.ledgers FOR ALL USING (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()));
+ * CREATE POLICY "Manage stock via company ownership" ON public.stock_items FOR ALL USING (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()));
+ * CREATE POLICY "Manage vouchers via company ownership" ON public.vouchers FOR ALL USING (company_id IN (SELECT id FROM companies WHERE owner_id = auth.uid()));
  * 
- * -- CRITICAL POST-SETUP STEP:
- * -- Go to Supabase Dashboard > Authentication > Providers > Email
- * -- Turn OFF "Confirm email" to allow immediate user login.
+ * CREATE POLICY "Manage entries via company ownership" ON public.voucher_entries FOR ALL 
+ *   USING (voucher_id IN (SELECT id FROM vouchers v JOIN companies c ON v.company_id = c.id WHERE c.owner_id = auth.uid()));
+ * 
+ * CREATE POLICY "Manage movements via company ownership" ON public.inventory_movements FOR ALL
+ *   USING (item_id IN (SELECT id FROM stock_items s JOIN companies c ON s.company_id = c.id WHERE c.owner_id = auth.uid()));
  */
 
 const supabaseUrl = 'https://uqjysvmpojhmsrsyoxwv.supabase.co';

@@ -1,4 +1,5 @@
-import React, { useState, ErrorInfo, ReactNode } from 'react';
+
+import React, { useState, useEffect, ErrorInfo, ReactNode, Component } from 'react';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -20,7 +21,11 @@ import {
   AlertTriangle,
   ShoppingCart,
   BarChart3,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Command,
+  Scale,
+  UploadCloud,
+  TrendingUp
 } from 'lucide-react';
 import { useERPStore } from './store/useERPStore';
 import Dashboard from './components/Dashboard';
@@ -34,33 +39,30 @@ import Billing from './components/Billing';
 import Purchases from './components/Purchases';
 import Reports from './components/Reports';
 import StockAdjustment from './components/StockAdjustment';
+import TaxCenter from './components/TaxCenter';
+import CommandPalette from './components/CommandPalette';
+import ImportCenter from './components/ImportCenter';
 
-type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'reports' | 'stock-adjustment';
+type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 'billing' | 'purchases' | 'reports' | 'stock-adjustment' | 'tax-center' | 'import-center';
 
-// --- Error Boundary for Resilience ---
-interface ErrorBoundaryProps {
-  children?: ReactNode;
-}
+interface ErrorBoundaryProps { children?: ReactNode; }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+/**
+ * Fix: Inherit from Component directly and properly type props and state to resolve 'Property state/props does not exist' errors.
+ * This ensures TypeScript correctly identifies ErrorBoundary as a React class component.
+ */
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
-
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("ERP UI Crash:", error, errorInfo);
   }
-
   render() {
     if (this.state.hasError) {
       return (
@@ -69,16 +71,11 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             <AlertTriangle size={40} />
           </div>
           <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Component Failure</h1>
-          <p className="text-slate-500 mb-8 max-w-md font-medium">A module in the ERP suite has crashed. This might be due to unexpected data or a network interruption.</p>
+          <p className="text-slate-500 mb-8 max-w-md font-medium">A module in the ERP suite has crashed.</p>
           <div className="bg-slate-900 p-6 rounded-2xl text-left font-mono text-xs text-blue-400 mb-8 max-w-2xl overflow-auto border border-white/10 shadow-2xl">
             {this.state.error?.toString()}
           </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-xl shadow-blue-600/20 hover:bg-blue-700 transition-all"
-          >
-            Reset Application
-          </button>
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-xl shadow-blue-600/20 hover:bg-blue-700 transition-all">Reset Application</button>
         </div>
       );
     }
@@ -91,6 +88,18 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   if (store.loading && !store.user) {
     return (
@@ -116,8 +125,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch(currentView) {
       case 'dashboard': return <Dashboard store={store} />;
-      case 'ledgers': 
-        return (role === 'Admin' || role === 'Accountant') ? <LedgerList store={store} /> : <Dashboard store={store} />;
+      case 'ledgers': return (role === 'Admin' || role === 'Accountant') ? <LedgerList store={store} /> : <Dashboard store={store} />;
       case 'stock': return <StockList store={store} />;
       case 'stock-adjustment': return <StockAdjustment store={store} onComplete={() => setCurrentView('stock')} />;
       case 'vouchers': return <VoucherEntry store={store} onComplete={() => setCurrentView('daybook')} />;
@@ -125,8 +133,9 @@ const App: React.FC = () => {
       case 'billing': return <Billing store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'purchases': return <Purchases store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'reports': return <Reports store={store} />;
-      case 'ai': 
-        return (role === 'Admin' || role === 'Accountant') ? <AIAnalyst store={store} /> : <Dashboard store={store} />;
+      case 'tax-center': return <TaxCenter store={store} />;
+      case 'import-center': return <ImportCenter store={store} onComplete={() => setCurrentView('ledgers')} />;
+      case 'ai': return (role === 'Admin' || role === 'Accountant') ? <AIAnalyst store={store} /> : <Dashboard store={store} />;
       default: return <Dashboard store={store} />;
     }
   };
@@ -134,7 +143,8 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <div className="flex h-screen w-screen overflow-hidden bg-slate-100 font-inter">
-        {/* Sidebar */}
+        {isCommandPaletteOpen && <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} setView={setCurrentView} store={store} />}
+        
         <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-20 no-print">
           <div className="p-6 border-b border-slate-800 flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">P</div>
@@ -142,83 +152,54 @@ const App: React.FC = () => {
           </div>
 
           <nav className="flex-1 py-6 overflow-y-auto px-4 space-y-1">
-            <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Navigation</p>
+            <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">General</p>
             <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Dashboard" />
             
-            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Commercial Ops</p>
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Operations</p>
             <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Sales Invoicing" />
             <NavItem active={currentView === 'purchases'} onClick={() => setCurrentView('purchases')} icon={<ShoppingCart size={18} />} label="Purchase Bills" />
             
-            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Reports</p>
-            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} icon={<BarChart3 size={18} />} label="Financial Statements" />
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Compliance</p>
+            <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" />
+            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} icon={<BarChart3 size={18} />} label="Financials" />
             <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
 
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
             {(role === 'Admin' || role === 'Accountant') && (
-              <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Chart of Accounts" />
+              <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Ledgers" />
             )}
-            <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory Master" />
-            <NavItem active={currentView === 'stock-adjustment'} onClick={() => setCurrentView('stock-adjustment')} icon={<SlidersHorizontal size={18} />} label="Stock Adjustments" />
+            <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" />
+            <NavItem active={currentView === 'import-center'} onClick={() => setCurrentView('import-center')} icon={<UploadCloud size={18} />} label="Bulk Import" />
             
-            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Transactions</p>
+            <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Tools</p>
             <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
-            
             {(role === 'Admin' || role === 'Accountant') && (
-              <>
-                <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Advanced</p>
-                <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Auditor" />
-              </>
+              <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Analyst" />
             )}
           </nav>
 
           <div className="p-4 bg-slate-950/50">
-            <div 
-              className="flex items-center gap-3 p-2 bg-slate-800/30 rounded-lg cursor-pointer hover:bg-slate-800/50 transition-colors relative"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-            >
-              <div className="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center border border-blue-500/20">
-                <UserCircle size={20} className="text-blue-400" />
-              </div>
+            <div className="flex items-center gap-3 p-2 bg-slate-800/30 rounded-lg cursor-pointer hover:bg-slate-800/50 transition-colors relative" onClick={() => setShowUserMenu(!showUserMenu)}>
+              <div className="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center border border-blue-500/20"><UserCircle size={20} className="text-blue-400" /></div>
               <div className="flex-1 overflow-hidden">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-bold text-white truncate">{store.user.name}</p>
-                  {role === 'Admin' && <ShieldCheck size={12} className="text-amber-500" />}
-                </div>
+                <div className="flex items-center gap-1.5"><p className="text-sm font-bold text-white truncate">{store.user.name}</p>{role === 'Admin' && <ShieldCheck size={12} className="text-amber-500" />}</div>
                 <p className="text-[10px] text-slate-500 truncate font-mono uppercase tracking-tighter">{role}</p>
               </div>
               {showUserMenu && (
                 <div className="absolute bottom-full left-0 w-full mb-2 bg-slate-800 border border-slate-700 shadow-2xl rounded-xl p-2 animate-in slide-in-from-bottom-2 duration-200">
-                  <button 
-                    onClick={() => store.logout()}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                  >
-                    <LogOut size={14} /> Exit Session
-                  </button>
+                  <button onClick={() => store.logout()} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"><LogOut size={14} /> Exit Session</button>
                 </div>
               )}
             </div>
           </div>
         </aside>
 
-        {/* Main Content Area */}
         <main className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Top Header Bar */}
           <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-30 shrink-0 shadow-sm no-print">
             <div className="flex items-center gap-4">
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Building2 size={20} className="text-blue-500" />
-                {store.company.name}
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${store.isSyncing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                  {store.isSyncing ? 'Syncing...' : 'Live'}
-                </span>
-              </h2>
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Building2 size={20} className="text-blue-500" />{store.company.name}</h2>
               <div className="relative">
-                <button 
-                  onClick={() => setShowQuickActions(!showQuickActions)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all"
-                >
-                  <Plus size={14} /> Quick Create <ChevronDown size={12} />
-                </button>
+                <button onClick={() => setShowQuickActions(!showQuickActions)} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all"><Plus size={14} /> Quick Create <ChevronDown size={12} /></button>
                 {showQuickActions && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowQuickActions(false)}></div>
@@ -226,38 +207,25 @@ const App: React.FC = () => {
                       <QuickActionItem onClick={() => { setCurrentView('billing'); setShowQuickActions(false); }} label="New Invoice" icon={<Receipt size={14} />} />
                       <QuickActionItem onClick={() => { setCurrentView('purchases'); setShowQuickActions(false); }} label="Record Bill" icon={<ShoppingCart size={14} />} />
                       <QuickActionItem onClick={() => { setCurrentView('vouchers'); setShowQuickActions(false); }} label="Record Voucher" icon={<PlusCircle size={14} />} />
-                      {(role === 'Admin' || role === 'Accountant') && (
-                        <QuickActionItem onClick={() => { setCurrentView('ledgers'); setShowQuickActions(false); }} label="Create Ledger" icon={<BookOpen size={14} />} />
-                      )}
-                      <QuickActionItem onClick={() => { setCurrentView('stock'); setShowQuickActions(false); }} label="New Stock Item" icon={<Package size={14} />} />
                     </div>
                   </>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Find ledger, voucher, item..." 
-                  className="bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm w-72 focus:ring-2 focus:ring-blue-500 transition-all outline-none"
-                />
-              </div>
+              <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center gap-3 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-400 rounded-xl text-sm transition-all group border border-slate-200/50">
+                <Search size={16} className="group-hover:text-blue-500 transition-colors" />
+                <span className="font-medium mr-10">Search anything...</span>
+                <div className="flex items-center gap-1 opacity-60"><Command size={12} /><span className="text-[10px] font-bold">K</span></div>
+              </button>
               <div className="flex items-center gap-4 border-l pl-6 border-slate-200">
-                 <div className="text-right">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Financial Period</p>
-                  <p className="text-xs font-bold text-slate-700">01-APR-24 to 31-MAR-25</p>
-                 </div>
+                 <div className="text-right"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Financial Period</p><p className="text-xs font-bold text-slate-700">01-APR-24 to 31-MAR-25</p></div>
                  {store.isSyncing && <RefreshCw className="animate-spin text-blue-500" size={16} />}
               </div>
             </div>
           </header>
 
-          {/* Dynamic View Content */}
-          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar erp-main-content">
-            {renderView()}
-          </div>
+          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar erp-main-content">{renderView()}</div>
         </main>
       </div>
     </ErrorBoundary>
@@ -265,28 +233,11 @@ const App: React.FC = () => {
 };
 
 const QuickActionItem: React.FC<{ onClick: () => void, label: string, icon: React.ReactNode }> = ({ onClick, label, icon }) => (
-  <button 
-    onClick={onClick}
-    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all"
-  >
-    {icon}
-    {label}
-  </button>
+  <button onClick={onClick} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all">{icon}{label}</button>
 );
 
 const NavItem: React.FC<{ active: boolean, label: string, icon: React.ReactNode, onClick: () => void }> = ({ active, label, icon, onClick }) => (
-  <button 
-    onClick={onClick}
-    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group ${
-      active 
-      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 translate-x-1' 
-      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-    }`}
-  >
-    <span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'} transition-colors`}>{icon}</span>
-    {label}
-    {active && <ChevronRight size={14} className="ml-auto opacity-50" />}
-  </button>
+  <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'} transition-colors`}>{icon}</span>{label}{active && <ChevronRight size={14} className="ml-auto opacity-50" />}</button>
 );
 
 export default App;

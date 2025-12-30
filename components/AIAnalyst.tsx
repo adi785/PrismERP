@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { BrainCircuit, Send, Sparkles, MessageSquare, ShieldCheck, TrendingUp, AlertCircle } from 'lucide-react';
+import { BrainCircuit, Send, Sparkles, MessageSquare, ShieldCheck, TrendingUp, AlertCircle, Loader2 } from 'lucide-react';
 
 const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
   const [query, setQuery] = useState('');
@@ -17,29 +16,28 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const promptContext = `
-        Current ERP Context:
-        Company: ${store.company.name}
+        Current ERP Context for ${store.company.name}:
         Ledgers: ${JSON.stringify(store.ledgers.map((l:any) => ({ name: l.name, balance: l.currentBalance })))}
-        Recent Vouchers: ${JSON.stringify(store.vouchers.slice(0, 5))}
-        Inventory: ${JSON.stringify(store.stockItems.map((i:any) => ({ name: i.name, stock: i.currentStock })))}
+        Recent Vouchers: ${JSON.stringify(store.vouchers.slice(0, 10))}
+        Inventory Status: ${JSON.stringify(store.stockItems.map((i:any) => ({ name: i.name, stock: i.currentStock, rate: i.salePrice })))}
 
         User Question: ${query}
       `;
 
-      // Switched to gemini-3-flash-preview for significantly faster response times
       const result = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: promptContext,
         config: {
-          systemInstruction: "You are an expert ERP Auditor and Financial Advisor. Provide a concise, professional financial analysis or answer based on the provided ERP data. If suggesting improvements, be specific to the data.",
-          temperature: 0.7,
+          systemInstruction: "You are an expert ERP Auditor. Analyze the provided financial data. Be concise, professional, and data-driven. If the user asks about stock, look at inventory. If they ask about money, look at ledger balances.",
+          thinkingConfig: { thinkingBudget: 0 }, // Optimized for latency
+          temperature: 0.2,
         }
       });
 
-      setResponse(result.text || "I couldn't generate a response. Please try rephrasing.");
+      setResponse(result.text || "Analysis complete but no text was generated.");
     } catch (err) {
-      console.error("AI Analysis Error:", err);
-      setResponse("System offline: AI Analysis requires a valid API configuration.");
+      console.error("AI Analyst Error:", err);
+      setResponse("Intelligence engine temporarily unavailable. Verify API connectivity.");
     } finally {
       setLoading(false);
     }
@@ -47,37 +45,40 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-gradient-to-br from-slate-900 to-blue-900 rounded-3xl p-10 text-white shadow-2xl relative overflow-hidden">
+      <div className="bg-gradient-to-br from-slate-900 to-blue-900 rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 p-10 opacity-10">
-          <BrainCircuit size={180} />
+          <BrainCircuit size={200} />
         </div>
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 bg-blue-500 rounded-2xl">
-              <Sparkles size={24} className="text-white" />
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-4 bg-blue-500 rounded-3xl shadow-xl shadow-blue-500/20">
+              <Sparkles size={28} className="text-white" />
             </div>
-            <h2 className="text-3xl font-extrabold tracking-tight">AI Financial Auditor</h2>
+            <div>
+              <h2 className="text-4xl font-black tracking-tight">Financial Intelligence</h2>
+              <p className="text-blue-300 font-bold uppercase text-[10px] tracking-[0.2em] mt-1">Real-time ERP Audit Engine</p>
+            </div>
           </div>
-          <p className="text-blue-100 text-lg max-w-xl leading-relaxed mb-8">
-            Ask complex questions about your cash flow, inventory health, or potential tax liabilities. Powered by real-time business data.
+          <p className="text-blue-100 text-lg max-w-xl leading-relaxed mb-10">
+            Query your business data using natural language. Get instant insights into cash flow, tax liability, and inventory health.
           </p>
 
           <div className="flex gap-4">
-            <div className="flex-1 relative">
+            <div className="flex-1 relative group">
               <input 
                 type="text" 
-                placeholder="Ask e.g. 'Is my stock level healthy for sales?'" 
+                placeholder="e.g. 'How much tax do I owe for this month?'" 
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && analyze()}
-                className="w-full bg-white/10 border border-white/20 rounded-2xl py-4 px-6 text-white placeholder-blue-200/50 outline-none focus:ring-2 focus:ring-blue-400 transition-all text-lg"
+                className="w-full bg-white/10 border border-white/20 rounded-[2rem] py-5 px-8 text-white placeholder-blue-200/50 outline-none focus:ring-4 focus:ring-blue-400/20 transition-all text-lg font-medium"
               />
               <button 
                 onClick={analyze}
                 disabled={loading}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-3 bg-blue-500 hover:bg-blue-400 text-white rounded-xl transition-all shadow-lg"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-4 bg-blue-500 hover:bg-blue-400 text-white rounded-[1.5rem] transition-all shadow-xl disabled:opacity-50"
               >
-                {loading ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <Send size={20} />}
+                {loading ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
               </button>
             </div>
           </div>
@@ -87,38 +88,38 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <SuggestionCard 
           icon={<ShieldCheck className="text-emerald-500" />} 
-          label="Compliance Check" 
-          desc="Analyze GST entries for reconciliation errors." 
-          onClick={() => setQuery("Check if my current GST ledger balances align with recent sales.")}
+          label="GST Health" 
+          desc="Verify if CGST/SGST ledger balances match sales." 
+          onClick={() => {setQuery("Analyze my GST ledgers for potential reconciliation errors based on sales."); analyze();}}
         />
         <SuggestionCard 
           icon={<TrendingUp className="text-blue-500" />} 
-          label="Cash Flow Prediction" 
-          desc="Forecast bank balance based on current debtors." 
-          onClick={() => setQuery("Predict my bank balance for next month based on Sundry Debtors.")}
+          label="Liquidity Scan" 
+          desc="Calculate current ratio and bank health." 
+          onClick={() => {setQuery("Calculate my liquidity ratios and tell me if my cash-in-hand is sufficient for my current liabilities."); analyze();}}
         />
         <SuggestionCard 
-          icon={<AlertCircle className="text-amber-500" />} 
-          label="Inventory Audit" 
-          desc="Identify slow-moving stock items." 
-          onClick={() => setQuery("Which stock items have low turnover relative to their purchase price?")}
+          icon={<AlertCircle className="text-rose-500" />} 
+          label="Stock Alert" 
+          desc="Identify SKUs that are tying up too much capital." 
+          onClick={() => {setQuery("Which inventory items have high value but zero sales in the last 10 transactions?"); analyze();}}
         />
       </div>
 
       {response && (
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm animate-in zoom-in-95 duration-500">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-              <MessageSquare size={20} />
+        <div className="bg-white rounded-[3rem] p-10 border border-slate-200 shadow-sm animate-in zoom-in-95 duration-500">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+              <MessageSquare size={24} />
             </div>
-            <h3 className="font-bold text-slate-800">Analyst Insights</h3>
+            <h3 className="text-xl font-black text-slate-800">Analyst Report</h3>
           </div>
-          <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">
+          <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-medium text-lg">
             {response}
           </div>
-          <div className="mt-8 flex gap-3 pt-6 border-t border-slate-100">
-            <button className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest">Mark as Resolved</button>
-            <button className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest ml-auto">Share Analysis</button>
+          <div className="mt-10 pt-8 border-t border-slate-100 flex justify-between items-center">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified by Prism Intelligence</span>
+            <button className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-[0.2em] transition-colors">Generate PDF Analysis</button>
           </div>
         </div>
       )}
@@ -129,11 +130,11 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
 const SuggestionCard: React.FC<{ icon: any, label: string, desc: string, onClick: () => void }> = ({ icon, label, desc, onClick }) => (
   <button 
     onClick={onClick}
-    className="bg-white p-6 rounded-2xl border border-slate-200 text-left hover:border-blue-300 hover:shadow-md transition-all group"
+    className="bg-white p-8 rounded-[2.5rem] border border-slate-200 text-left hover:border-blue-400 hover:shadow-2xl hover:shadow-blue-500/5 transition-all group"
   >
-    <div className="p-2 bg-slate-50 rounded-xl mb-4 w-fit group-hover:bg-blue-50 transition-colors">{icon}</div>
-    <h4 className="font-bold text-slate-800 mb-1">{label}</h4>
-    <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
+    <div className="p-4 bg-slate-50 rounded-2xl mb-6 w-fit group-hover:bg-blue-50 transition-colors">{icon}</div>
+    <h4 className="font-black text-slate-900 mb-2 text-lg">{label}</h4>
+    <p className="text-xs text-slate-500 leading-relaxed font-bold uppercase tracking-tight">{desc}</p>
   </button>
 );
 

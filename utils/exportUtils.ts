@@ -1,6 +1,6 @@
 /**
  * ERP Export/Import Utilities
- * Provides CSV generation compatible with Excel and LibreOffice
+ * Provides CSV generation and System-wide JSON Snapshots
  */
 
 export const downloadCSV = (data: any[], filename: string) => {
@@ -27,6 +27,30 @@ export const downloadCSV = (data: any[], filename: string) => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+/**
+ * Portable System Snapshot (JSON)
+ * Allows the admin to download the entire company state for archiving
+ */
+export const exportSystemSnapshot = (store: any) => {
+  const snapshot = {
+    metadata: {
+      version: '2.1.0',
+      timestamp: new Date().toISOString(),
+      company: store.company.name
+    },
+    ledgers: store.ledgers,
+    stock: store.stockItems,
+    vouchers: store.vouchers
+  };
+
+  const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `PrismERP_Snapshot_${store.company.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+  link.click();
 };
 
 export const parseCSV = (file: File): Promise<any[]> => {
@@ -58,7 +82,6 @@ export const triggerPrint = () => {
 
 /**
  * Converts numbers to Indian Rupee Words
- * e.g., 1234 -> "One Thousand Two Hundred Thirty Four Rupees Only"
  */
 export const numberToWords = (num: number): string => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];

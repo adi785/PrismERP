@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Package, Search, Plus, Filter, ArrowRight, AlertTriangle, X, Hash, ShoppingBag, Tag, Layers, TrendingUp, AlertCircle, Edit2, Download, Upload, FileSpreadsheet, History, ArrowLeft, ArrowUpRight, ArrowDownRight, Printer, ShoppingCart, MoreVertical, Eye, Copy, Settings2, Trash2, Boxes, ChevronDown } from 'lucide-react';
+import { Package, Search, Plus, Filter, ArrowRight, AlertTriangle, X, Hash, ShoppingBag, Tag, Layers, TrendingUp, AlertCircle, Edit2, Download, Upload, FileSpreadsheet, History, ArrowLeft, ArrowUpRight, ArrowDownRight, Printer, ShoppingCart, MoreVertical, Eye, Copy, Settings2, Trash2, Boxes, ChevronDown, ListFilter, ClipboardCheck } from 'lucide-react';
 import { StockItem, Voucher, InventoryMovement } from '../types';
 import { downloadCSV, triggerPrint } from '../utils/exportUtils';
 
@@ -8,6 +9,7 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStockId, setSelectedStockId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<'overview' | 'ledger'>('overview');
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState<Omit<StockItem, 'id' | 'currentStock'>>({
@@ -49,21 +51,24 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
     [selectedStockId, store.stockItems]
   );
 
-  // Advanced Stock History Engine
+  // Advanced Stock Audit History Engine
   const historyData = useMemo(() => {
-    if (!selectedStockItem) return [];
+    if (!selectedStockItem) return { transactions: [], summary: { in: 0, out: 0 } };
     
-    // Sort vouchers by date ASC to calculate running balance correctly
     const relevantVouchers = [...store.vouchers]
       .filter((v: Voucher) => v.inventory?.some(m => m.itemId === selectedStockItem.id))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     let runningBalance = selectedStockItem.openingStock;
+    let totalIn = 0;
+    let totalOut = 0;
+
     const history = [{
       id: 'opening-bal',
       date: 'Opening',
       number: '-',
       type: 'Initial Balance',
+      particulars: 'Book Opening Status',
       change: 0,
       balance: runningBalance,
       isOpening: true
@@ -73,12 +78,16 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
       const movement = v.inventory?.find((m: InventoryMovement) => m.itemId === selectedStockItem.id);
       if (movement) {
         const change = movement.type === 'In' ? movement.quantity : -movement.quantity;
+        if (movement.type === 'In') totalIn += movement.quantity;
+        else totalOut += movement.quantity;
+        
         runningBalance += change;
         history.push({
           id: v.id,
           date: v.date,
           number: v.number,
-          type: v.type,
+          type: v.type === 'Journal' ? 'Adjustment' : v.type,
+          particulars: v.narration || 'General Movement',
           change: change,
           balance: runningBalance,
           isOpening: false
@@ -86,7 +95,10 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
       }
     });
 
-    return history.reverse(); // Newest transactions first for UI
+    return { 
+      transactions: history.reverse(),
+      summary: { in: totalIn, out: totalOut }
+    };
   }, [selectedStockItem, store.vouchers]);
 
   const handleCreateStockItem = async (e: React.FormEvent) => {
@@ -108,12 +120,13 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
 
   const handleExportHistoryCSV = () => {
     if (!selectedStockItem) return;
-    downloadCSV(historyData, `Stock_History_${selectedStockItem.sku}`);
+    downloadCSV(historyData.transactions, `Stock_Audit_${selectedStockItem.sku}`);
   };
 
   const handleDeleteItem = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete SKU: ${name}? This will remove the item from the master catalog. History in vouchers will remain but item references will be detached.`)) {
+    if (window.confirm(`Are you sure you want to delete SKU: ${name}?`)) {
       store.deleteStockItem(id);
+      setSelectedStockId(null);
     }
   };
 
@@ -125,12 +138,30 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1">
-            <h2 className="text-2xl font-black text-slate-900">{selectedStockItem.name} Ledger</h2>
-            <p className="text-slate-500 font-medium">SKU: <span className="font-mono font-bold text-blue-600 uppercase tracking-tighter">{selectedStockItem.sku}</span> • Transactional History</p>
+            <h2 className="text-2xl font-black text-slate-900 leading-tight">{selectedStockItem.name}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[10px] font-black uppercase tracking-widest">{selectedStockItem.sku}</span>
+              <span className="text-slate-400 text-xs font-medium">•</span>
+              <span className="text-slate-500 text-xs font-bold uppercase tracking-tighter">HSN: {selectedStockItem.hsn || 'N/A'}</span>
+            </div>
           </div>
           <div className="flex gap-3 no-print">
-            <button onClick={handleExportHistoryCSV} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-50 transition-all">
-              <Download size={16} /> CSV
+            <div className="flex bg-slate-100 p-1 rounded-xl mr-4">
+              <button 
+                onClick={() => setDetailTab('overview')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${detailTab === 'overview' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Item Overview
+              </button>
+              <button 
+                onClick={() => setDetailTab('ledger')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${detailTab === 'ledger' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Stock Ledger
+              </button>
+            </div>
+            <button onClick={handleExportHistoryCSV} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
+              <Download size={16} /> Audit Export
             </button>
             <button onClick={triggerPrint} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl shadow-slate-900/20">
               <Printer size={16} /> Print Statement
@@ -138,89 +169,108 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
           </div>
         </div>
 
-        <div className="print-only mb-10 pb-8 border-b-2 border-slate-900">
-          <h1 className="text-3xl font-black uppercase tracking-tight">{store.company.name}</h1>
-          <p className="text-sm font-bold text-slate-500 mt-2 uppercase tracking-widest">Stock Ledger: {selectedStockItem.name}</p>
-          <p className="text-xs font-mono font-bold mt-1 text-slate-400">SKU: {selectedStockItem.sku} • HSN: {selectedStockItem.hsn} • FY: {store.company.financialYear}</p>
-        </div>
+        {detailTab === 'overview' ? (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <StatDisplay label="Current Qty" value={`${selectedStockItem.currentStock} ${selectedStockItem.unit}`} icon={<Package className="text-blue-500" />} />
+              <StatDisplay label="Valuation" value={`₹${(selectedStockItem.currentStock * selectedStockItem.purchasePrice).toLocaleString()}`} icon={<TrendingUp className="text-emerald-500" />} />
+              <StatDisplay label="Standard Cost" value={`₹${selectedStockItem.purchasePrice.toLocaleString()}`} icon={<ShoppingCart className="text-slate-400" />} />
+              <StatDisplay label="Retail Price" value={`₹${selectedStockItem.salePrice.toLocaleString()}`} icon={<Tag className="text-amber-500" />} />
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-           <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-             <div className="absolute -right-4 -top-4 p-8 opacity-[0.03] group-hover:opacity-10 transition-opacity"><Boxes size={80} /></div>
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Current Inventory</p>
-             <p className="text-3xl font-black text-slate-900 relative z-10">{selectedStockItem.currentStock} <span className="text-xs font-bold text-slate-400 uppercase">{selectedStockItem.unit}</span></p>
-           </div>
-           <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Valuation (at Cost)</p>
-             <p className="text-3xl font-black text-blue-600 tracking-tighter">₹{(selectedStockItem.currentStock * selectedStockItem.purchasePrice).toLocaleString()}</p>
-           </div>
-           <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Standard Cost</p>
-             <p className="text-3xl font-black text-slate-800 tracking-tighter">₹{selectedStockItem.purchasePrice.toLocaleString()}</p>
-           </div>
-           <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm group">
-             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tax Configuration</p>
-             <p className="text-3xl font-black text-slate-400 tracking-tighter">GST {selectedStockItem.gstRate}%</p>
-           </div>
-        </div>
-
-        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between no-print">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-600 text-white rounded-lg"><History size={18} /></div>
-              <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Movement History & Audit Trail</h3>
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 p-10 shadow-sm grid grid-cols-1 lg:grid-cols-2 gap-12">
+              <div className="space-y-8">
+                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-4">Product Master Details</h3>
+                 <DetailRow label="Item Nomenclature" value={selectedStockItem.name} />
+                 <DetailRow label="Stock Keeping Unit (SKU)" value={selectedStockItem.sku} />
+                 <DetailRow label="Harmonized System Nomenclature (HSN)" value={selectedStockItem.hsn} />
+                 <DetailRow label="Unit of Measurement" value={selectedStockItem.unit} />
+                 <DetailRow label="GST Taxation Bracket" value={`${selectedStockItem.gstRate}%`} />
+              </div>
+              <div className="space-y-8">
+                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b pb-4">Financial Status</h3>
+                 <DetailRow label="Opening Stock Level" value={`${selectedStockItem.openingStock} ${selectedStockItem.unit}`} />
+                 <DetailRow label="Inward Since Opening" value={`${historyData.summary.in} ${selectedStockItem.unit}`} />
+                 <DetailRow label="Outward Since Opening" value={`${historyData.summary.out} ${selectedStockItem.unit}`} />
+                 <DetailRow label="Current Inventory Position" value={`${selectedStockItem.currentStock} ${selectedStockItem.unit}`} highlight />
+              </div>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/20 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  <th className="px-8 py-5 border-b border-slate-100">Date</th>
-                  <th className="px-6 py-5 border-b border-slate-100">Voucher Reference</th>
-                  <th className="px-6 py-5 border-b border-slate-100">Transaction Type</th>
-                  <th className="px-6 py-5 border-b border-slate-100 text-right">Qty Change</th>
-                  <th className="px-8 py-5 border-b border-slate-100 text-right">Running Balance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {historyData.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-8 py-5 text-sm font-bold text-slate-700">{row.date}</td>
-                    <td className="px-6 py-5">
-                      {row.isOpening ? (
-                        <span className="text-slate-300">—</span>
-                      ) : (
-                        <span className="font-mono text-xs font-bold text-blue-600 uppercase tracking-tighter">{row.number}</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-3">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg ${
-                          row.isOpening ? 'bg-slate-100 text-slate-500' : 
-                          row.change > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                        }`}>
-                          {row.type}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-right font-mono font-bold">
-                      {row.isOpening ? (
-                        <span className="text-slate-300">—</span>
-                      ) : (
-                        <span className={row.change > 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                          {row.change > 0 ? `+${row.change}` : row.change} {selectedStockItem.unit}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-8 py-5 text-right font-mono font-black text-slate-900">
-                      {row.balance} {selectedStockItem.unit}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        ) : (
+          <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Inward (+)</p>
+                    <p className="text-2xl font-black text-emerald-600">+{historyData.summary.in} <span className="text-xs">{selectedStockItem.unit}</span></p>
+                  </div>
+                  <ArrowDownRight size={24} className="text-emerald-200" />
+                </div>
+                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Outward (-)</p>
+                    <p className="text-2xl font-black text-rose-600">-{historyData.summary.out} <span className="text-xs">{selectedStockItem.unit}</span></p>
+                  </div>
+                  <ArrowUpRight size={24} className="text-rose-200" />
+                </div>
+                <div className="bg-slate-900 p-6 rounded-[2rem] text-white flex items-center justify-between shadow-xl shadow-slate-200">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Book Balance</p>
+                    <p className="text-2xl font-black text-blue-400">{selectedStockItem.currentStock} <span className="text-xs">{selectedStockItem.unit}</span></p>
+                  </div>
+                  <ClipboardCheck size={24} className="text-blue-500/50" />
+                </div>
+             </div>
+
+             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="p-8 border-b border-slate-50 bg-slate-50/30 flex items-center gap-3">
+                  <ListFilter size={18} className="text-slate-400" />
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Complete Movement Ledger</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/20 text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] border-b border-slate-100">
+                        <th className="px-10 py-5">Date</th>
+                        <th className="px-6 py-5">Reference</th>
+                        <th className="px-6 py-5">Doc Type</th>
+                        <th className="px-6 py-5">Particulars / Narration</th>
+                        <th className="px-6 py-5 text-right">Movement</th>
+                        <th className="px-10 py-5 text-right">Book Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {historyData.transactions.map((tx) => (
+                        <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="px-10 py-5 text-sm font-bold text-slate-800">{tx.date}</td>
+                          <td className="px-6 py-5">
+                            <span className="font-mono text-xs font-black text-blue-600 uppercase tracking-tighter">{tx.number}</span>
+                          </td>
+                          <td className="px-6 py-5">
+                             <span className={`text-[9px] font-black px-2.5 py-1.5 rounded-lg uppercase tracking-widest ${
+                               tx.isOpening ? 'bg-slate-100 text-slate-500' : 
+                               tx.change > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                             }`}>
+                                {tx.type}
+                             </span>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-xs font-medium text-slate-500 max-w-xs truncate" title={tx.particulars}>{tx.particulars}</p>
+                          </td>
+                          <td className={`px-6 py-5 text-right font-mono font-black ${tx.change > 0 ? 'text-emerald-600' : tx.change < 0 ? 'text-rose-600' : 'text-slate-300'}`}>
+                            {tx.isOpening ? '—' : (tx.change > 0 ? `+${tx.change}` : tx.change)}
+                          </td>
+                          <td className="px-10 py-5 text-right font-mono font-black text-slate-900">
+                            {tx.balance} <span className="text-[10px] text-slate-400 font-bold">{selectedStockItem.unit}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+             </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -229,7 +279,7 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between no-print">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Inventory Intelligence</h2>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Inventory Intelligence</h2>
           <p className="text-slate-500 font-medium">Global stock valuation and SKU movement control</p>
         </div>
         <div className="flex gap-3">
@@ -243,12 +293,6 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
             <Plus size={18} /> Add Stock Item
           </button>
         </div>
-      </div>
-
-      <div className="print-only mb-10 pb-8 border-b-2 border-slate-900">
-        <h1 className="text-3xl font-black uppercase text-slate-900 tracking-tight">{store.company.name}</h1>
-        <p className="text-sm font-bold text-slate-500 mt-2 uppercase tracking-widest">Inventory Valuation & SKU Summary Report</p>
-        <p className="text-xs font-mono font-bold mt-1 text-slate-400 uppercase tracking-tighter">Reporting Period: {store.company.financialYear}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -289,16 +333,10 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 no-print pb-20">
-        {filteredItems.length === 0 && (
-          <div className="col-span-full py-32 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
-             <Package size={64} className="mx-auto text-slate-200 mb-6" />
-             <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-xs">No matching inventory found</p>
-          </div>
-        )}
         {filteredItems.map((item: StockItem) => (
           <div 
             key={item.id} 
-            onClick={() => setSelectedStockId(item.id)}
+            onClick={() => { setSelectedStockId(item.id); setDetailTab('overview'); }}
             className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 hover:border-blue-400 hover:shadow-2xl hover:shadow-blue-500/5 transition-all group flex flex-col relative overflow-hidden cursor-pointer active:scale-95 duration-300"
           >
             <div className="flex justify-between items-start mb-10">
@@ -325,29 +363,16 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
                       className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-300"
                     >
                       <button 
-                        onClick={(e) => { e.stopPropagation(); setSelectedStockId(item.id); setActiveMenuId(null); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedStockId(item.id); setDetailTab('ledger'); setActiveMenuId(null); }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-black text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all"
                       >
-                        <Eye size={18} /> View History
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); alert("Edit SKU coming soon!"); setActiveMenuId(null); }}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-black text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all"
-                      >
-                        <Settings2 size={18} /> Adjust Master
+                        <Eye size={18} /> View Ledger
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id, item.name); setActiveMenuId(null); }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-black text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                       >
                         <Trash2 size={18} /> Delete SKU
-                      </button>
-                      <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(item.sku); alert("SKU ID Copied"); setActiveMenuId(null); }}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-xs font-bold text-slate-400 hover:bg-slate-50 hover:text-slate-800 rounded-xl transition-all"
-                      >
-                        <Copy size={16} /> Copy SKU ID
                       </button>
                     </div>
                   )}
@@ -373,10 +398,10 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
             <div className="flex items-center justify-between pt-8 border-t border-slate-100 mt-auto">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Standard Rate</span>
-                <span className="text-sm font-black text-slate-900 font-mono">₹{item.salePrice.toLocaleString()}</span>
+                <span className="text-sm font-black text-slate-900 font-mono">₹{selectedStockItem?.salePrice.toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest group-hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10">
-                View Ledger <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                Open Audit <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </div>
             </div>
           </div>
@@ -394,126 +419,49 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
                   <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Inventory Cataloging Hub</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="p-3 hover:bg-white hover:shadow-xl rounded-2xl transition-all text-slate-400 hover:text-rose-500"
-              >
-                <X size={24} />
-              </button>
+              <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-white hover:shadow-xl rounded-2xl transition-all text-slate-400 hover:text-rose-500"><X size={24} /></button>
             </div>
             
             <form onSubmit={handleCreateStockItem} className="p-10 space-y-8">
               <div className="grid grid-cols-2 gap-8">
                 <div className="col-span-2">
                   <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Full SKU Description</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="e.g. Dell UltraSharp 27 Monitor - U2723QE"
-                    className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-black text-slate-800 placeholder:text-slate-300"
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  />
+                  <input type="text" required placeholder="e.g. Dell UltraSharp 27 Monitor" className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-black text-slate-800" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                 </div>
-
                 <div>
                   <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">SKU Unique ID</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="e.g. DUL-27-4K-2024"
-                    className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono font-black text-blue-600 placeholder:text-slate-300 uppercase"
-                    value={formData.sku}
-                    onChange={e => setFormData({ ...formData, sku: e.target.value })}
-                  />
+                  <input type="text" required placeholder="SKU-001" className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono font-black text-blue-600 uppercase" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} />
                 </div>
-
                 <div>
                   <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">HSN Classification</label>
-                  <input 
-                    type="text"
-                    placeholder="8-digit Tax Category"
-                    className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono font-black placeholder:text-slate-300"
-                    value={formData.hsn}
-                    onChange={e => setFormData({ ...formData, hsn: e.target.value })}
-                  />
+                  <input type="text" placeholder="8-digit HSN" className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono font-black" value={formData.hsn} onChange={e => setFormData({ ...formData, hsn: e.target.value })} />
                 </div>
-
                 <div>
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Inventory Unit</label>
-                  <div className="relative">
-                    <select 
-                      className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-black appearance-none"
-                      value={formData.unit}
-                      onChange={e => setFormData({ ...formData, unit: e.target.value })}
-                    >
-                      <option value="Nos">Numbers (Nos)</option>
-                      <option value="Pcs">Pieces (Pcs)</option>
-                      <option value="Box">Bulk Boxes</option>
-                      <option value="Kgs">Kilograms</option>
-                      <option value="Mtr">Meters</option>
-                    </select>
-                    <ChevronDown size={20} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  </div>
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Unit</label>
+                  <input type="text" placeholder="Nos" className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-black" value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })} />
                 </div>
-
                 <div>
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">GST Bracket (%)</label>
-                  <input 
-                    type="number"
-                    className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-black"
-                    value={formData.gstRate}
-                    onChange={e => setFormData({ ...formData, gstRate: Number(e.target.value) })}
-                  />
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">GST (%)</label>
+                  <input type="number" className="w-full px-6 py-4.5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-black" value={formData.gstRate} onChange={e => setFormData({ ...formData, gstRate: Number(e.target.value) })} />
                 </div>
-
                 <div className="col-span-2 grid grid-cols-3 gap-6 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-inner">
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">Cost Price</label>
-                    <input 
-                      type="number"
-                      className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black shadow-sm"
-                      value={formData.purchasePrice || ''}
-                      onChange={e => setFormData({ ...formData, purchasePrice: Number(e.target.value) })}
-                    />
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Cost Price</label>
+                    <input type="number" className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black" value={formData.purchasePrice || ''} onChange={e => setFormData({ ...formData, purchasePrice: Number(e.target.value) })} />
                   </div>
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">Sale Price</label>
-                    <input 
-                      type="number"
-                      className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black shadow-sm"
-                      value={formData.salePrice || ''}
-                      onChange={e => setFormData({ ...formData, salePrice: Number(e.target.value) })}
-                    />
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sale Price</label>
+                    <input type="number" className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black" value={formData.salePrice || ''} onChange={e => setFormData({ ...formData, salePrice: Number(e.target.value) })} />
                   </div>
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2">Opening Qty</label>
-                    <input 
-                      type="number"
-                      className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black shadow-sm"
-                      value={formData.openingStock || ''}
-                      onChange={e => setFormData({ ...formData, openingStock: Number(e.target.value) })}
-                    />
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Opening Qty</label>
+                    <input type="number" className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black" value={formData.openingStock || ''} onChange={e => setFormData({ ...formData, openingStock: Number(e.target.value) })} />
                   </div>
                 </div>
               </div>
-
               <div className="pt-6 flex gap-4">
-                <button 
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-5 px-8 rounded-[1.5rem] border border-slate-200 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
-                >
-                  Discard
-                </button>
-                <button 
-                  type="submit"
-                  className="flex-1 py-5 px-8 bg-blue-600 text-white rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-blue-700 shadow-2xl shadow-blue-600/30 transition-all group"
-                >
-                  <div className="flex items-center justify-center gap-3">
-                    Confirm SKU Registration <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
-                  </div>
-                </button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-5 px-8 rounded-[1.5rem] border border-slate-200 text-slate-500 font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Discard</button>
+                <button type="submit" className="flex-1 py-5 px-8 bg-blue-600 text-white rounded-[1.5rem] font-black uppercase tracking-widest hover:bg-blue-700 shadow-2xl shadow-blue-600/30 transition-all group">Register SKU</button>
               </div>
             </form>
           </div>
@@ -522,5 +470,22 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
     </div>
   );
 };
+
+const StatDisplay: React.FC<{ label: string, value: string, icon: React.ReactNode }> = ({ label, value, icon }) => (
+  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+    <div className="p-3 bg-slate-50 rounded-2xl">{icon}</div>
+    <div>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-xl font-black text-slate-900 tracking-tighter">{value}</p>
+    </div>
+  </div>
+);
+
+const DetailRow: React.FC<{ label: string, value: string | number, highlight?: boolean }> = ({ label, value, highlight }) => (
+  <div className="flex justify-between items-center group">
+    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</span>
+    <span className={`text-sm font-black ${highlight ? 'text-blue-600 text-lg' : 'text-slate-800'}`}>{value}</span>
+  </div>
+);
 
 export default StockList;
