@@ -48,10 +48,6 @@ type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-/**
- * Fix: Inherit from Component directly and properly type props and state to resolve 'Property state/props does not exist' errors.
- * This ensures TypeScript correctly identifies ErrorBoundary as a React class component.
- */
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -125,7 +121,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch(currentView) {
       case 'dashboard': return <Dashboard store={store} />;
-      case 'ledgers': return (role === 'Admin' || role === 'Accountant') ? <LedgerList store={store} /> : <Dashboard store={store} />;
+      case 'ledgers': return <LedgerList store={store} />;
       case 'stock': return <StockList store={store} />;
       case 'stock-adjustment': return <StockAdjustment store={store} onComplete={() => setCurrentView('stock')} />;
       case 'vouchers': return <VoucherEntry store={store} onComplete={() => setCurrentView('daybook')} />;
@@ -135,7 +131,7 @@ const App: React.FC = () => {
       case 'reports': return <Reports store={store} />;
       case 'tax-center': return <TaxCenter store={store} />;
       case 'import-center': return <ImportCenter store={store} onComplete={() => setCurrentView('ledgers')} />;
-      case 'ai': return (role === 'Admin' || role === 'Accountant') ? <AIAnalyst store={store} /> : <Dashboard store={store} />;
+      case 'ai': return <AIAnalyst store={store} />;
       default: return <Dashboard store={store} />;
     }
   };
@@ -165,17 +161,13 @@ const App: React.FC = () => {
             <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
 
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
-            {(role === 'Admin' || role === 'Accountant') && (
-              <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Ledgers" />
-            )}
+            <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Ledgers" />
             <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" />
             <NavItem active={currentView === 'import-center'} onClick={() => setCurrentView('import-center')} icon={<UploadCloud size={18} />} label="Bulk Import" />
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Tools</p>
             <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
-            {(role === 'Admin' || role === 'Accountant') && (
-              <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Analyst" />
-            )}
+            <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Analyst" />
           </nav>
 
           <div className="p-4 bg-slate-950/50">

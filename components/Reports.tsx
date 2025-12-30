@@ -1,10 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart3, PieChart, Landmark, TrendingUp, TrendingDown, Wallet, FileText, Printer, ChevronRight, ShieldCheck, Tag, BarChart } from 'lucide-react';
+import { BarChart3, PieChart, Landmark, TrendingUp, TrendingDown, Wallet, FileText, Printer, ChevronRight, ShieldCheck, Tag, BarChart, Sparkles, Loader2, MessageSquare } from 'lucide-react';
 import { Ledger, StockItem } from '../types';
 import { triggerPrint } from '../utils/exportUtils';
+import { GoogleGenAI } from "@google/genai";
 
 const Reports: React.FC<{ store: any }> = ({ store }) => {
   const [activeReport, setActiveReport] = useState<'PL' | 'BS' | 'SKU'>('PL');
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { ledgers, company, stockItems, vouchers } = store;
 
   const financialData = useMemo(() => {
@@ -25,7 +28,32 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
     return { incomes, expenses, assets, liabilities, equity, totalIncome, totalExpense, netProfit, totalAssets, totalLiabilities, totalEquity };
   }, [ledgers]);
 
-  // SKU Profitability Analytics
+  // AI ANALYTICS LOGIC
+  const handleAIAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Analyze this ERP data for ${company.name}. 
+      Profit/Loss: ₹${financialData.netProfit}
+      Total Revenue: ₹${financialData.totalIncome}
+      Total Expenses: ₹${financialData.totalExpense}
+      Top Stock Items: ${JSON.stringify(stockItems.slice(0, 5).map((s:any) => ({name: s.name, qty: s.currentStock})))}
+      
+      Give a professional executive summary in 3 concise bullet points. Focus on financial health and inventory warnings.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: { temperature: 0.3 }
+      });
+      setAiSummary(response.text || "Insight could not be generated.");
+    } catch (err) {
+      setAiSummary("Analysis error: Verify API key or connection.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const skuMetrics = useMemo(() => {
     return stockItems.map((item: StockItem) => {
       const movements = vouchers.flatMap((v: any) => v.inventory || []).filter((m: any) => m.itemId === item.id);
@@ -46,15 +74,40 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Financial Statements</h2>
           <p className="text-sm text-slate-500 font-medium">Audited accounting snapshots for {company.name}</p>
         </div>
-        <div className="flex bg-slate-200 p-1 rounded-2xl">
-          <button onClick={() => setActiveReport('PL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeReport === 'PL' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>P & L</button>
-          <button onClick={() => setActiveReport('BS')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeReport === 'BS' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>Balance Sheet</button>
-          <button onClick={() => setActiveReport('SKU')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeReport === 'SKU' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>SKU Intelligence</button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={handleAIAnalysis}
+            disabled={isAnalyzing}
+            className="flex items-center gap-2 px-6 py-2.5 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm hover:bg-blue-100 transition-all border border-blue-200"
+          >
+            {isAnalyzing ? <Loader2 className="animate-spin" size={16} /> : <><Sparkles size={16} /> AI Insight</>}
+          </button>
+          <div className="flex bg-slate-200 p-1 rounded-2xl">
+            <button onClick={() => setActiveReport('PL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeReport === 'PL' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>P & L</button>
+            <button onClick={() => setActiveReport('BS')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeReport === 'BS' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>Balance Sheet</button>
+            <button onClick={() => setActiveReport('SKU')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeReport === 'SKU' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>SKU Intelligence</button>
+          </div>
+          <button onClick={triggerPrint} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl shadow-slate-900/20">
+            <Printer size={16} /> Export
+          </button>
         </div>
-        <button onClick={triggerPrint} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl shadow-slate-900/20">
-          <Printer size={16} /> Export Financials
-        </button>
       </div>
+
+      {aiSummary && (
+        <div className="bg-blue-600 rounded-[2.5rem] p-8 text-white shadow-2xl animate-in zoom-in-95 duration-500 relative overflow-hidden group">
+           <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700"><Sparkles size={120} /></div>
+           <div className="flex items-start gap-6 relative z-10">
+              <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-md"><MessageSquare size={32} /></div>
+              <div className="flex-1">
+                 <h3 className="text-sm font-black uppercase tracking-[0.2em] mb-4 opacity-80">AI Executive Briefing</h3>
+                 <div className="prose prose-invert text-lg font-medium leading-relaxed">
+                   {aiSummary.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                 </div>
+                 <button onClick={() => setAiSummary(null)} className="mt-6 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-colors">Dismiss Intelligence</button>
+              </div>
+           </div>
+        </div>
+      )}
 
       {activeReport === 'SKU' ? (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
@@ -112,7 +165,6 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
         </div>
       ) : activeReport === 'PL' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-left-4">
-          {/* Existing PL Logic... */}
           <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
             <div className="px-8 py-6 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between no-print">
               <h3 className="text-emerald-700 font-black uppercase tracking-widest text-xs">Revenue & Incomes</h3>

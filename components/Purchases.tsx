@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-// Fix: Added missing ShoppingCart import from lucide-react to resolve 'Cannot find name' error on line 210.
-import { Save, Plus, Trash2, Printer, CheckCircle2, ChevronDown, FileText, Loader2, Search, Package, Building2, Calculator, ShoppingCart } from 'lucide-react';
+import { Save, Plus, Trash2, Printer, CheckCircle2, ChevronDown, FileText, Loader2, Search, Package, Building2, Calculator, ShoppingCart, Camera, Sparkles } from 'lucide-react';
 import { StockItem, Ledger } from '../types';
 import { triggerPrint, numberToWords } from '../utils/exportUtils';
+import { GoogleGenAI } from "@google/genai";
 
 interface PurchaseLineItem {
   id: string;
@@ -23,11 +23,13 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
   const [items, setItems] = useState<PurchaseLineItem[]>([]);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [date] = useState(new Date().toISOString().split('T')[0]);
 
   const [activeSearchId, setActiveSearchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const calculateLine = (item: Partial<PurchaseLineItem>): PurchaseLineItem => {
     const qty = item.qty || 0;
@@ -58,6 +60,65 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
     const newItem = calculateLine({ id: Date.now().toString(), itemId: '', name: '', sku: '', hsn: '', qty: 1, rate: 0, gstRate: 18 });
     setItems([...items, newItem]);
     setTimeout(() => { setActiveSearchId(newItem.id); setSearchQuery(''); }, 50);
+  };
+
+  // AI BILL SCANNING LOGIC
+  const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash-image',
+          contents: {
+            parts: [
+              { inlineData: { data: base64Data, mimeType: file.type } },
+              { text: `Extract data from this purchase invoice. Return ONLY JSON matching this structure: { "billNo": string, "vendorName": string, "items": Array<{ "name": string, "qty": number, "rate": number, "gstRate": number }> }. Try to map items to existing stock if possible. Context: ${JSON.stringify(store.stockItems.map((s:any) => ({id: s.id, name: s.name})))}` }
+            ]
+          }
+        });
+
+        let text = response.text || '{}';
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const result = JSON.parse(text);
+        
+        if (result.billNo) setVendor(v => ({ ...v, billNo: result.billNo }));
+        
+        if (result.items && Array.isArray(result.items)) {
+          const newItems = result.items.map((aiItem: any) => {
+            const matchedStock = store.stockItems.find((s: any) => 
+              s.name.toLowerCase().includes(aiItem.name.toLowerCase()) ||
+              aiItem.name.toLowerCase().includes(s.name.toLowerCase())
+            );
+
+            const base = {
+              id: Math.random().toString(),
+              itemId: matchedStock?.id || '',
+              name: matchedStock?.name || aiItem.name,
+              sku: matchedStock?.sku || 'AI-EXTRACTED',
+              hsn: matchedStock?.hsn || '',
+              qty: aiItem.qty || 1,
+              rate: aiItem.rate || 0,
+              gstRate: aiItem.gstRate || matchedStock?.gstRate || 18
+            };
+            return calculateLine(base);
+          });
+          setItems(newItems);
+        }
+      };
+    } catch (err) {
+      console.error("AI Scan Failed:", err);
+      alert("AI Scan failed. Please enter details manually.");
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const updateItem = (id: string, updates: Partial<PurchaseLineItem>) => {
@@ -93,8 +154,6 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
     try {
       const inventory = items.map(i => ({ itemId: i.itemId, quantity: i.qty, rate: i.rate, amount: i.taxableAmount, type: 'In' as const }));
       const ledgerId = vendor.ledgerId || 'l-cash';
-      
-      // Calculate individual GST splits for ledger entries
       const cgst = Number((totals.gst / 2).toFixed(2));
       const sgst = totals.gst - cgst;
 
@@ -115,7 +174,7 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
       });
       setIsSaved(true);
     } catch (err) {
-      alert("Error posting purchase. Check connection.");
+      alert("Error posting purchase.");
     } finally {
       setIsSaving(false);
     }
@@ -211,12 +270,22 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
               <div className="p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><ShoppingCart size={40} /></div>
               <div>
                 <h2 className="text-4xl font-black text-slate-900 tracking-tight">Purchase Bill Entry</h2>
-                <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1 opacity-70">Registering material inward for {store.company.name}</p>
+                <p className="text-slate-500 font-bold text-sm uppercase tracking-widest mt-1 opacity-70">Registering material inward for {store.company.name}</p>
               </div>
             </div>
-            <button onClick={() => triggerPrint()} className="flex items-center gap-3 px-8 py-4 bg-white border border-slate-200 rounded-[2rem] text-slate-700 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-md group">
-              <Printer size={20} className="group-hover:rotate-12 transition-transform" /> Print Draft
-            </button>
+            <div className="flex items-center gap-4">
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAIScan} />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                className="flex items-center gap-3 px-8 py-4 bg-blue-50 text-blue-700 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all shadow-md group border-2 border-blue-200"
+              >
+                {isScanning ? <Loader2 size={20} className="animate-spin" /> : <><Sparkles size={20} className="animate-pulse" /> AI Scan Bill</>}
+              </button>
+              <button onClick={() => triggerPrint()} className="flex items-center gap-3 px-8 py-4 bg-white border border-slate-200 rounded-[2rem] text-slate-700 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-md">
+                <Printer size={20} /> Print Draft
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
@@ -275,15 +344,6 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
                           <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="p-5 text-rose-300 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={28} /></button>
                         </div>
                       </div>
-                      {item.itemId && (
-                        <div className="flex items-center justify-between px-8 py-5 bg-white rounded-3xl border-2 border-slate-100 shadow-sm">
-                           <div className="flex gap-12">
-                              <div><span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1.5 block">GST Rate</span><span className="text-sm font-black text-blue-600">{item.gstRate}%</span></div>
-                              <div><span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1.5 block">Taxable</span><span className="text-sm font-black text-slate-700">₹{item.taxableAmount.toLocaleString()}</span></div>
-                           </div>
-                           <div className="text-right"><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1.5 block">Net Total</span><span className="text-xl font-black text-slate-950 font-mono">₹{item.total.toLocaleString()}</span></div>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>

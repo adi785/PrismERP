@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2, MonitorOff } from 'lucide-react';
+import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2, MonitorOff, Send } from 'lucide-react';
 import { UserRole } from '../types';
 import { api } from '../services/api';
 
@@ -12,6 +13,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'auth' | 'select' | 'create'>(store.user ? 'select' : 'auth');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [isAwaitingVerification, setIsAwaitingVerification] = useState(false);
   const [newCompany, setNewCompany] = useState({ name: '', gstin: '', fy: '2024-25', address: '' });
   const [loading, setLoading] = useState(false);
 
@@ -22,12 +24,18 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
     try {
       if (mode === 'login') {
         await store.login(email, password);
+        setStep('select');
       } else {
         await store.signup(email, password, name, role);
+        setIsAwaitingVerification(true);
       }
-      setStep('select');
     } catch (err: any) {
-      setError(err.message || "Authentication failed. Please check your credentials.");
+      const msg = err.message || "";
+      if (msg.includes('CONFIRMATION_REQUIRED') || msg.toLowerCase().includes('email not confirmed')) {
+        setIsAwaitingVerification(true);
+      } else {
+        setError(msg || "Authentication failed. Please check your credentials.");
+      }
     } finally {
       setLoading(false);
     }
@@ -36,7 +44,6 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
   const handleBypassToLocal = () => {
     setLoading(true);
     api.enableLocalMode();
-    // Re-trigger the login process using local mode
     store.login(email || "demo@prism.erp", "password")
       .then(() => {
         setStep('select');
@@ -54,16 +61,15 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
     try {
       await store.createCompany(newCompany.name, newCompany.gstin, newCompany.fy, newCompany.address);
     } catch (err: any) {
-      console.error("Company Creation Error:", err);
       const msg = err.message || "";
       if (msg.includes("AUTH_SESSION_EXPIRED")) {
-        setError("Security session expired. Please log in again to establish your business hub.");
+        setError("Security session expired. Please log in again.");
         setTimeout(() => {
           store.logout();
           setStep('auth');
         }, 2000);
       } else {
-        setError(msg || "Failed to establish company hub. Please check your database connection.");
+        setError(msg || "Failed to establish company hub.");
       }
       setLoading(false);
     }
@@ -75,165 +81,183 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.15),transparent)] pointer-events-none" />
         <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
           <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl border border-white/20">
-            <div className="text-center mb-10">
-              <div className="w-20 h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-600/40 rotate-3 hover:rotate-0 transition-transform duration-500">
-                <Building2 className="text-white" size={40} />
-              </div>
-              <h1 className="text-4xl font-black text-slate-900 mb-2 tracking-tight">Prism<span className="text-blue-600">ERP</span></h1>
-              <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em]">Enterprise Resource Intelligence</p>
-            </div>
-
-            <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
-              <button 
-                onClick={() => setMode('login')}
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${mode === 'login' ? 'bg-white text-blue-600 shadow-md shadow-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
-              >
-                Login
-              </button>
-              <button 
-                onClick={() => setMode('signup')}
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${mode === 'signup' ? 'bg-white text-blue-600 shadow-md shadow-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
-              >
-                Create Account
-              </button>
-            </div>
-
-            <form onSubmit={handleAuth} className="space-y-5">
-              {error && (
-                <div className={`p-5 rounded-2xl border animate-in slide-in-from-top-2 ${error.includes('CONFIRMATION_REQUIRED') ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
-                  <div className="flex items-center gap-3 mb-2 font-black text-xs">
-                    <AlertCircle size={16} />
-                    {error.includes('CONFIRMATION_REQUIRED') ? 'Email Verification Required' : 'Authentication Error'}
+            
+            {isAwaitingVerification ? (
+              <div className="text-center py-4 animate-in zoom-in-95 duration-500">
+                <div className="w-24 h-24 bg-blue-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-xl relative">
+                  <Mail className="text-blue-600 animate-pulse" size={48} />
+                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-blue-600 rounded-full border-4 border-white flex items-center justify-center">
+                    <CheckCircle2 size={16} className="text-white" />
                   </div>
-                  
-                  {error.includes('CONFIRMATION_REQUIRED') ? (
-                    <div className="space-y-4">
-                      <p className="text-[11px] leading-relaxed font-medium">
-                        Supabase requires email confirmation before you can log in.
-                      </p>
-                      <div className="p-3 bg-white/60 border border-amber-200 rounded-xl">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1.5 underline">Quick Fix:</p>
-                        <p className="text-[10px] text-slate-600 font-bold mb-3">
-                          Go to <strong>Auth &gt; Providers &gt; Email</strong> and turn <strong>OFF</strong> "Confirm email".
-                        </p>
-                        <button 
-                          type="button"
-                          onClick={handleBypassToLocal}
-                          className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm"
-                        >
-                          <MonitorOff size={14} /> Bypass to Offline Mode
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs font-bold">{error}</p>
-                  )}
                 </div>
-              )}
+                <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Verify Your Email</h2>
+                <p className="text-slate-500 font-medium mb-8 leading-relaxed">
+                  We've sent a secure verification link to <br/>
+                  <span className="text-slate-900 font-bold underline">{email}</span>. <br/>
+                  Please click the link in your inbox to activate your account.
+                </p>
+                <div className="space-y-4">
+                  <button 
+                    onClick={handleAuth}
+                    disabled={loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-600/20"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={20} /> : "I've Verified, Continue"}
+                  </button>
+                  <button 
+                    onClick={() => { setIsAwaitingVerification(false); setMode('login'); }}
+                    className="w-full py-4 text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-slate-600 transition-colors"
+                  >
+                    Return to Login
+                  </button>
+                </div>
+                <div className="mt-10 p-4 bg-slate-50 rounded-2xl flex items-start gap-3 text-left">
+                  <Info className="text-blue-500 shrink-0" size={18} />
+                  <p className="text-[11px] font-medium text-slate-500 leading-tight">
+                    Don't see it? Check your spam folder or wait a few minutes. Verification is mandatory for security compliance.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="text-center mb-10">
+                  <div className="w-20 h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-600/40 rotate-3 hover:rotate-0 transition-transform duration-500">
+                    <Building2 className="text-white" size={40} />
+                  </div>
+                  <h1 className="text-4xl font-black text-slate-900 mb-2 tracking-tight">Prism<span className="text-blue-600">ERP</span></h1>
+                  <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em]">Enterprise Resource Intelligence</p>
+                </div>
 
-              {mode === 'signup' && (
-                <>
-                  <div className="animate-in slide-in-from-left-4 duration-300">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 ml-1">Full Name</label>
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
+                  <button 
+                    onClick={() => { setMode('login'); setError(null); }}
+                    className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${mode === 'login' ? 'bg-white text-blue-600 shadow-md shadow-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Login
+                  </button>
+                  <button 
+                    onClick={() => { setMode('signup'); setError(null); }}
+                    className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${mode === 'signup' ? 'bg-white text-blue-600 shadow-md shadow-slate-200' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Create Account
+                  </button>
+                </div>
+
+                <form onSubmit={handleAuth} className="space-y-5">
+                  {error && (
+                    <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 animate-in slide-in-from-top-2">
+                      <div className="flex items-center gap-2 mb-1 font-black text-xs">
+                        <AlertCircle size={16} />
+                        Auth Error
+                      </div>
+                      <p className="text-xs font-bold leading-tight">{error}</p>
+                    </div>
+                  )}
+
+                  {mode === 'signup' && (
+                    <>
+                      <div className="animate-in slide-in-from-left-4 duration-300">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Full Name</label>
+                        <div className="relative">
+                          <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                          <input 
+                            type="text" 
+                            required 
+                            placeholder="John Doe" 
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            className="w-full pl-12 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 placeholder-slate-300"
+                          />
+                        </div>
+                      </div>
+                      <div className="animate-in slide-in-from-left-4 duration-300 delay-75">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Account Role</label>
+                        <div className="relative">
+                          <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                          <select 
+                            value={role}
+                            onChange={e => setRole(e.target.value as UserRole)}
+                            className="w-full pl-12 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 appearance-none"
+                          >
+                            <option value="Admin">Administrator</option>
+                            <option value="Accountant">Accountant</option>
+                            <option value="Staff">Basic Staff</option>
+                          </select>
+                          <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Work Email</label>
                     <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                       <input 
-                        type="text" 
+                        type="email" 
                         required 
-                        placeholder="John Doe" 
-                        value={name}
-                        onChange={e => setName(e.target.value)}
+                        placeholder="name@company.com" 
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
                         className="w-full pl-12 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 placeholder-slate-300"
                       />
                     </div>
                   </div>
-                  <div className="animate-in slide-in-from-left-4 duration-300 delay-75">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 ml-1">Account Role</label>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Password</label>
                     <div className="relative">
-                      <Shield className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                      <select 
-                        value={role}
-                        onChange={e => setRole(e.target.value as UserRole)}
-                        className="w-full pl-12 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 appearance-none"
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        required 
+                        placeholder="••••••••" 
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full pl-12 pr-12 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 placeholder-slate-300"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-blue-500 transition-colors"
                       >
-                        <option value="Admin">Administrator</option>
-                        <option value="Accountant">Accountant</option>
-                        <option value="Staff">Basic Staff</option>
-                      </select>
-                      <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
                   </div>
-                </>
-              )}
-              
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 ml-1">Work Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <input 
-                    type="email" 
-                    required 
-                    placeholder="name@company.com" 
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className="w-full pl-12 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 placeholder-slate-300"
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 ml-1">Secret Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <input 
-                    type={showPassword ? "text" : "password"} 
-                    required 
-                    placeholder="••••••••" 
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    className="w-full pl-12 pr-12 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-800 placeholder-slate-300"
-                  />
                   <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-blue-500 transition-colors"
+                    type="submit" 
+                    disabled={loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-2xl shadow-blue-600/30 group disabled:opacity-50 mt-4"
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {loading ? <Loader2 className="animate-spin" size={20} /> : (
+                      <>
+                        {mode === 'login' ? 'Authenticate' : 'Register Account'} 
+                        <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
                   </button>
-                </div>
-              </div>
+                  
+                  {mode === 'login' && (
+                    <button 
+                      type="button"
+                      onClick={handleBypassToLocal}
+                      className="w-full py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-blue-400 transition-colors text-center"
+                    >
+                      Bypass to Local Storage Demo
+                    </button>
+                  )}
+                </form>
+              </>
+            )}
 
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-2xl shadow-blue-600/30 group disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-              >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : (
-                  <>
-                    {mode === 'login' ? 'Authenticate' : 'Establish Account'} 
-                    <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </button>
-              
-              {/* Emergency switch if the user is stuck on first load */}
-              {!error && mode === 'login' && (
-                <button 
-                  type="button"
-                  onClick={handleBypassToLocal}
-                  className="w-full py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-blue-400 transition-colors text-center"
-                >
-                  Skip Auth & Enter Offline Demo
-                </button>
-              )}
-            </form>
-
-            <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-center gap-3 grayscale opacity-50">
+            <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-center gap-3 opacity-30">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Secured by</span>
-              <div className="flex gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+              <div className="flex gap-1">
+                <div className="w-1 h-1 rounded-full bg-slate-900"></div>
+                <div className="w-1 h-1 rounded-full bg-slate-900"></div>
+                <div className="w-1 h-1 rounded-full bg-slate-900"></div>
               </div>
             </div>
           </div>
@@ -250,7 +274,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
             <div>
               <h1 className="text-4xl font-black text-slate-900 tracking-tight">Business Selection</h1>
               <p className="text-slate-500 mt-2 font-medium flex items-center gap-2">
-                Welcome back, <span className="text-blue-600 font-bold">{store.user?.name}</span>
+                User: <span className="text-blue-600 font-bold">{store.user?.name}</span>
                 <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[10px] font-black uppercase tracking-widest">{store.user?.role}</span>
               </p>
             </div>
@@ -327,18 +351,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                   <AlertCircle size={20} />
                   <p className="font-black">Critical Setup Error</p>
                 </div>
-                <p className="font-medium opacity-80 mb-4">{error}</p>
-                {error.includes("SQL") && (
-                  <div className="p-4 bg-white/50 border border-rose-200 rounded-xl">
-                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-400 mb-2">
-                      <Info size={12} />
-                      Solution Required
-                    </div>
-                    <p className="text-xs text-slate-600 leading-relaxed font-normal">
-                      It looks like the required database tables are missing in Supabase. Please copy the SQL script from <code>services/supabase.ts</code> and run it in the SQL Editor on your Supabase dashboard.
-                    </p>
-                  </div>
-                )}
+                <p className="font-medium opacity-80">{error}</p>
               </div>
             )}
 
