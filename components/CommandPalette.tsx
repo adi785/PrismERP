@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Command, ArrowRight, BookOpen, Package, Receipt, Plus, BarChart3, Calculator, BrainCircuit, X } from 'lucide-react';
 
@@ -82,22 +83,40 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, setVie
           )}
         </div>
 
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-           <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded shadow-sm border border-slate-200">
-                <Command size={10} /> <span>K</span>
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-4">
+           <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded shadow-sm border border-slate-200">
+                    <Command size={10} /> <span>K</span>
+                  </div>
+                  <span>Global Search</span>
+                  <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded shadow-sm border border-slate-200 ml-2">
+                    <span>ESC</span>
+                  </div>
+                  <span>Close</span>
               </div>
-              <span>Toggle Palette</span>
-              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded shadow-sm border border-slate-200 ml-2">
-                <span>ESC</span>
-              </div>
-              <span>Close</span>
+              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Prism Intelligence Engine</p>
            </div>
-           <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Prism Intelligence Engine</p>
+           
+           <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+              <ShortcutBadge label="Alt+D" action="Dash" />
+              <ShortcutBadge label="Alt+S" action="Sales" />
+              <ShortcutBadge label="Alt+P" action="Purch" />
+              <ShortcutBadge label="Alt+I" action="Stock" />
+              <ShortcutBadge label="Alt+L" action="Ledger" />
+              <ShortcutBadge label="Alt+B" action="DayBook" />
+           </div>
         </div>
       </div>
     </div>
   );
 };
+
+const ShortcutBadge: React.FC<{ label: string, action: string }> = ({ label, action }) => (
+  <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+    <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">{label}</span>
+    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{action}</span>
+  </div>
+);
 
 export default CommandPalette;

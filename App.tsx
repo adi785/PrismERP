@@ -168,9 +168,32 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      // Cmd/Ctrl + K for Search
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsCommandPaletteOpen(prev => !prev);
+      }
+      
+      // Alt + Key Navigation
+      if (e.altKey) {
+        const key = e.key.toLowerCase();
+        const navMap: Record<string, View> = {
+          'd': 'dashboard',
+          's': 'billing',
+          'p': 'purchases',
+          'i': 'stock',
+          'l': 'ledgers',
+          'b': 'daybook',
+          't': 'tax-center',
+          'v': 'vouchers',
+          'a': 'ai',
+          'r': 'reports'
+        };
+
+        if (navMap[key]) {
+          e.preventDefault();
+          setCurrentView(navMap[key]);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -230,26 +253,26 @@ const App: React.FC = () => {
 
           <nav className="flex-1 py-6 overflow-y-auto px-4 space-y-1">
             <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">General</p>
-            <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Dashboard" />
+            <NavItem active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} icon={<LayoutDashboard size={18} />} label="Dashboard" shortcut="D" />
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Operations</p>
-            <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Sales Invoicing" />
-            <NavItem active={currentView === 'purchases'} onClick={() => setCurrentView('purchases')} icon={<ShoppingCart size={18} />} label="Purchase Bills" />
+            <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Sales Invoicing" shortcut="S" />
+            <NavItem active={currentView === 'purchases'} onClick={() => setCurrentView('purchases')} icon={<ShoppingCart size={18} />} label="Purchase Bills" shortcut="P" />
             <NavItem active={currentView === 'returns'} onClick={() => setCurrentView('returns')} icon={<RotateCcw size={18} />} label="Returns & Notes" />
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Compliance</p>
-            <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" />
-            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} icon={<BarChart3 size={18} />} label="Financials" />
-            <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" />
+            <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" shortcut="T" />
+            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} icon={<BarChart3 size={18} />} label="Financials" shortcut="R" />
+            <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" shortcut="B" />
 
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
-            <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Ledgers" />
-            <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" />
+            <NavItem active={currentView === 'ledgers'} onClick={() => setCurrentView('ledgers')} icon={<BookOpen size={18} />} label="Ledgers" shortcut="L" />
+            <NavItem active={currentView === 'stock'} onClick={() => setCurrentView('stock')} icon={<Package size={18} />} label="Inventory" shortcut="I" />
             <NavItem active={currentView === 'import-center'} onClick={() => setCurrentView('import-center')} icon={<UploadCloud size={18} />} label="Bulk Import" />
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Tools</p>
-            <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" />
-            <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Analyst" />
+            <NavItem active={currentView === 'vouchers'} onClick={() => setCurrentView('vouchers')} icon={<PlusCircle size={18} />} label="Voucher Entry" shortcut="V" />
+            <NavItem active={currentView === 'ai'} onClick={() => setCurrentView('ai')} icon={<BrainCircuit size={18} />} label="AI Analyst" shortcut="A" />
           </nav>
 
           <div className="p-4 bg-slate-950/50">
@@ -313,8 +336,12 @@ const QuickActionItem: React.FC<{ onClick: () => void, label: string, icon: Reac
   <button onClick={onClick} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all">{icon}{label}</button>
 );
 
-const NavItem: React.FC<{ active: boolean, label: string, icon: React.ReactNode, onClick: () => void }> = ({ active, label, icon, onClick }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'} transition-colors`}>{icon}</span>{label}{active && <ChevronRight size={14} className="ml-auto opacity-50" />}</button>
+const NavItem: React.FC<{ active: boolean, label: string, icon: React.ReactNode, onClick: () => void, shortcut?: string }> = ({ active, label, icon, onClick, shortcut }) => (
+  <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+    <span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'} transition-colors`}>{icon}</span>
+    <span className="flex-1 text-left">{label}</span>
+    {active ? <ChevronRight size={14} className="opacity-50" /> : shortcut && <span className="text-[9px] font-black text-slate-700 group-hover:text-blue-400/50 bg-slate-800/50 px-1.5 py-0.5 rounded transition-colors">{shortcut}</span>}
+  </button>
 );
 
 export default App;
