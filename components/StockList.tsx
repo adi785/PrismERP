@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Package, Search, Plus, Filter, ArrowRight, AlertTriangle, X, Hash, ShoppingBag, Tag, Layers, TrendingUp, AlertCircle, Edit2, Download, Upload, FileSpreadsheet, History, ArrowLeft, ArrowUpRight, ArrowDownRight, Printer, ShoppingCart, MoreVertical, Eye, Copy, Settings2, Trash2, Boxes, ChevronDown, ListFilter, ClipboardCheck } from 'lucide-react';
+import { Package, Search, Plus, Filter, ArrowRight, AlertTriangle, X, Hash, ShoppingBag, Tag, Layers, TrendingUp, AlertCircle, Edit2, Download, Upload, FileSpreadsheet, History, ArrowLeft, ArrowUpRight, ArrowDownRight, Printer, ShoppingCart, MoreVertical, Eye, Copy, Settings2, Trash2, Boxes, ChevronDown, ListFilter, ClipboardCheck, Scale, Info } from 'lucide-react';
 import { StockItem, Voucher, InventoryMovement } from '../types';
 import { downloadCSV, triggerPrint } from '../utils/exportUtils';
 
@@ -9,7 +9,7 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStockId, setSelectedStockId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-  const [detailTab, setDetailTab] = useState<'overview' | 'ledger'>('overview');
+  const [detailTab, setDetailTab] = useState<'overview' | 'ledger' | 'tax'>('overview');
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState<Omit<StockItem, 'id' | 'currentStock'>>({
@@ -51,7 +51,6 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
     [selectedStockId, store.stockItems]
   );
 
-  // Advanced Stock Audit History Engine
   const historyData = useMemo(() => {
     if (!selectedStockItem) return { transactions: [], summary: { in: 0, out: 0 } };
     
@@ -151,20 +150,26 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
                 onClick={() => setDetailTab('overview')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${detailTab === 'overview' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                Item Overview
+                Overview
               </button>
               <button 
                 onClick={() => setDetailTab('ledger')}
                 className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${detailTab === 'ledger' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                Stock Ledger
+                Ledger
+              </button>
+              <button 
+                onClick={() => setDetailTab('tax')}
+                className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${detailTab === 'tax' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                Tax Details
               </button>
             </div>
             <button onClick={handleExportHistoryCSV} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-              <Download size={16} /> Audit Export
+              <Download size={16} /> Export
             </button>
             <button onClick={triggerPrint} className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl shadow-slate-900/20">
-              <Printer size={16} /> Print Statement
+              <Printer size={16} /> Print
             </button>
           </div>
         </div>
@@ -196,7 +201,7 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
               </div>
             </div>
           </div>
-        ) : (
+        ) : detailTab === 'ledger' ? (
           <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between">
@@ -269,6 +274,44 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
                   </table>
                 </div>
              </div>
+          </div>
+        ) : (
+          <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 p-10 shadow-sm relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 scale-150"><Scale size={160} /></div>
+               <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="space-y-6">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b pb-4">GST Compliance Markers</h3>
+                    <div className="flex justify-between items-center">
+                       <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">HSN / SAC Code</span>
+                       <span className="text-xl font-black text-slate-900 font-mono tracking-tighter">{selectedStockItem.hsn || 'NOT CONFIGURED'}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                       <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Applicable GST Rate</span>
+                       <span className="text-xl font-black text-blue-600 font-mono">{selectedStockItem.gstRate}%</span>
+                    </div>
+                    <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-start gap-3 mt-8">
+                       <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                       <p className="text-[10px] font-bold text-blue-700 leading-relaxed uppercase">The breakdown below represents the standard tax impact based on the active GST rate of {selectedStockItem.gstRate}%.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6">
+                     <TaxImpactCard 
+                        title="Purchase Price Impact" 
+                        basePrice={selectedStockItem.purchasePrice} 
+                        gstRate={selectedStockItem.gstRate} 
+                        type="purchase"
+                     />
+                     <TaxImpactCard 
+                        title="Sales Price Impact" 
+                        basePrice={selectedStockItem.salePrice} 
+                        gstRate={selectedStockItem.gstRate} 
+                        type="sale"
+                     />
+                  </div>
+               </div>
+            </div>
           </div>
         )}
       </div>
@@ -398,7 +441,7 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
             <div className="flex items-center justify-between pt-8 border-t border-slate-100 mt-auto">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Standard Rate</span>
-                <span className="text-sm font-black text-slate-900 font-mono">₹{selectedStockItem?.salePrice.toLocaleString()}</span>
+                <span className="text-sm font-black text-slate-900 font-mono">₹{item.salePrice.toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest group-hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10">
                 Open Audit <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
@@ -467,6 +510,40 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const TaxImpactCard: React.FC<{ title: string, basePrice: number, gstRate: number, type: 'purchase' | 'sale' }> = ({ title, basePrice, gstRate, type }) => {
+  const taxAmount = Number(((basePrice * gstRate) / 100).toFixed(2));
+  const totalAmount = Number((basePrice + taxAmount).toFixed(2));
+  const cgstSgst = Number((taxAmount / 2).toFixed(2));
+
+  return (
+    <div className={`p-8 rounded-[2rem] border-2 flex flex-col shadow-sm ${type === 'purchase' ? 'bg-slate-50 border-slate-100' : 'bg-blue-50/20 border-blue-100/50'}`}>
+       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+         {type === 'purchase' ? <ShoppingCart size={14} className="text-slate-400" /> : <Tag size={14} className="text-blue-400" />}
+         {title}
+       </h4>
+       <div className="space-y-4">
+          <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase">
+             <span>Base Price</span>
+             <span className="text-slate-900 font-mono">₹{basePrice.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase border-t border-dashed pt-4">
+             <span>CGST ({(gstRate / 2).toFixed(1)}%)</span>
+             <span className="text-slate-700 font-mono">₹{cgstSgst.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase">
+             <span>SGST ({(gstRate / 2).toFixed(1)}%)</span>
+             <span className="text-slate-700 font-mono">₹{cgstSgst.toLocaleString()}</span>
+          </div>
+          <div className="h-px bg-slate-200 mt-2"></div>
+          <div className="flex justify-between items-end">
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gross Impact</span>
+             <span className={`text-2xl font-black tracking-tighter font-mono ${type === 'purchase' ? 'text-slate-900' : 'text-blue-600'}`}>₹{totalAmount.toLocaleString()}</span>
+          </div>
+       </div>
     </div>
   );
 };

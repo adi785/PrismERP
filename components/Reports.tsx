@@ -1,8 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, Printer, Sparkles, Loader2, MessageSquare, RefreshCw, ShieldCheck, FileSearch, ServerCrash } from 'lucide-react';
+import { TrendingUp, TrendingDown, Sparkles, Loader2, MessageSquare, RefreshCw, ShieldCheck, FileSearch, ServerCrash, Key } from 'lucide-react';
 import { Ledger } from '../types';
-import { triggerPrint } from '../utils/exportUtils';
 import { GoogleGenAI } from "@google/genai";
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -11,15 +10,22 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
+  const [needsKey, setNeedsKey] = useState(false);
   
   const { ledgers, company, vouchers, refreshData } = store;
 
-  const getApiKey = () => {
-    try {
-      return (typeof process !== 'undefined' && process.env?.API_KEY) ? process.env.API_KEY : null;
-    } catch (e) {
-      return null;
-    }
+  const checkKeyState = async () => {
+    const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY);
+    // @ts-ignore - aistudio is pre-configured in the environment
+    const hasSelectedKey = await window.aistudio?.hasSelectedApiKey();
+    return !!(apiKey || hasSelectedKey);
+  };
+
+  const handleSelectKey = async () => {
+    // @ts-ignore - aistudio is pre-configured in the environment
+    await window.aistudio?.openSelectKey();
+    setNeedsKey(false);
+    handleAIAnalysis();
   };
 
   const financialData = useMemo(() => {
@@ -38,26 +44,32 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
   }, [ledgers, vouchers]);
 
   const handleAIAnalysis = async () => {
-    const apiKey = getApiKey();
     if (!financialData.hasData) return;
-    if (!apiKey) {
-      setAiSummary("SYSTEM ERROR: API_KEY is missing in your deployment environment.");
+    
+    const keyIsReady = await checkKeyState();
+    if (!keyIsReady) {
+      setNeedsKey(true);
       return;
     }
 
     setIsAnalyzing(true);
     setAiSummary(null);
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      // Fix: Creating new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Financial Summary for ${company.name}: REVENUE: ₹${financialData.totalIncome}, EXPENSE: ₹${financialData.totalExpense}, NET: ₹${financialData.netProfit}. Analysis needed.`;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { systemInstruction: "Provide a concise financial health briefing for the CEO. Use Markdown for bolding and lists." }
+        config: { systemInstruction: "Provide a concise financial health briefing for the CEO. ALWAYS use Indian Rupee (INR / ₹) for currency. Use the Indian numbering system (Lakhs, Crores). Use Markdown for bolding and lists. Use professional corporate language." }
       });
       setAiSummary(response.text || "Analysis complete.");
     } catch (err: any) {
-      setAiSummary(`ERROR: ${err.message}`);
+      if (err.message?.includes("Requested entity was not found")) {
+        setNeedsKey(true);
+      } else {
+        setAiSummary(`ERROR: ${err.message}`);
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -75,14 +87,25 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
             <RefreshCw size={16} className={isReconciling ? 'animate-spin' : ''} /> Sync
           </button>
           <div className="flex bg-slate-200 p-1 rounded-2xl">
+            {/* Fix: Changed setActiveReport to activeReport for proper state comparison in className logic. */}
             <button onClick={() => setActiveReport('PL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeReport === 'PL' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>P & L</button>
+            {/* Fix: Changed setActiveReport to activeReport for proper state comparison in className logic. */}
             <button onClick={() => setActiveReport('BS')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeReport === 'BS' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>Balance Sheet</button>
           </div>
         </div>
       </div>
 
-      <div className={`${aiSummary?.includes('ERROR') ? 'bg-rose-50 border-rose-200' : aiSummary ? 'bg-white shadow-xl' : 'bg-slate-50 border-dashed border-slate-200'} rounded-[2.5rem] p-10 border-2 transition-all min-h-[160px] flex flex-col justify-center`}>
-        {!aiSummary ? (
+      <div className={`${needsKey ? 'bg-amber-50 border-amber-200' : aiSummary?.includes('ERROR') ? 'bg-rose-50 border-rose-200' : aiSummary ? 'bg-white shadow-xl' : 'bg-slate-50 border-dashed border-slate-200'} rounded-[2.5rem] p-10 border-2 transition-all min-h-[160px] flex flex-col justify-center`}>
+        {needsKey ? (
+          <div className="flex items-center gap-8 text-amber-900">
+             <div className="p-5 bg-amber-500 text-white rounded-[2rem] shadow-lg"><Key size={40} /></div>
+             <div className="flex-1">
+                <h3 className="text-sm font-black uppercase tracking-[0.2em] mb-2">AI Activation Required</h3>
+                <p className="text-base font-bold">Please select an API Key to generate financial briefings.</p>
+                <button onClick={handleSelectKey} className="mt-4 px-6 py-2.5 bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest">Select Key</button>
+             </div>
+          </div>
+        ) : !aiSummary ? (
           <div className="flex flex-col items-center text-center space-y-4">
              <Sparkles className="text-blue-500 opacity-40" size={40} />
              <button onClick={handleAIAnalysis} disabled={isAnalyzing} className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center gap-3">

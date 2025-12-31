@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Save, Plus, Trash2, ArrowLeft, Package, Calculator, CheckCircle2, SlidersHorizontal, AlertTriangle, History, Info } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowLeft, Package, Calculator, CheckCircle2, SlidersHorizontal, AlertTriangle, History, Info, AlertCircle } from 'lucide-react';
 import { StockItem } from '../types';
 
 const ADJUSTMENT_REASONS = [
@@ -36,9 +36,22 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
     setItems(items.filter(i => i.id !== id));
   };
 
+  const hasDeficit = useMemo(() => {
+    return items.some(i => {
+      const stock = store.stockItems.find((s: StockItem) => s.id === i.itemId);
+      if (!stock) return false;
+      return i.type === 'Decrease' && i.qty > stock.currentStock;
+    });
+  }, [items, store.stockItems]);
+
   const handleSave = async () => {
     if (items.length === 0 || items.some(i => !i.itemId || i.qty <= 0)) {
       alert("Please ensure all lines have a selected item and valid quantity.");
+      return;
+    }
+
+    if (hasDeficit) {
+      alert("Negative Inventory Violation: You cannot decrease stock below 0.");
       return;
     }
 
@@ -50,26 +63,26 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
       type: (i.type === 'Increase' ? 'In' : 'Out') as 'In' | 'Out'
     }));
 
-    // Record as a Journal voucher for audit trail
     const totalImpactValue = inventory.reduce((sum, mov) => sum + mov.amount, 0);
 
-    await store.addVoucher({
-      number: `ADJ-${Date.now().toString().slice(-6)}`,
-      date,
-      type: 'Journal',
-      entries: [
-        // For a decrease (loss), we'd typically debit an expense and credit stock
-        // Here we just record the movement for the audit trail
-        { ledgerId: 'l-purchase', debit: totalImpactValue, credit: 0 },
-        { ledgerId: 'l-cash', debit: 0, credit: totalImpactValue }
-      ],
-      inventory,
-      narration: `Inventory Adjustment: ${items.map(i => `${i.type} ${i.qty} units due to ${i.reason}`).join('; ')}`,
-      totalAmount: totalImpactValue,
-      gstTotal: 0
-    });
-
-    setIsSaved(true);
+    try {
+      await store.addVoucher({
+        number: `ADJ-${Date.now().toString().slice(-6)}`,
+        date,
+        type: 'Journal',
+        entries: [
+          { ledgerId: 'l-purchase', debit: totalImpactValue, credit: 0 },
+          { ledgerId: 'l-cash', debit: 0, credit: totalImpactValue }
+        ],
+        inventory,
+        narration: `Inventory Adjustment: ${items.map(i => `${i.type} ${i.qty} units due to ${i.reason}`).join('; ')}`,
+        totalAmount: totalImpactValue,
+        gstTotal: 0
+      });
+      setIsSaved(true);
+    } catch (err: any) {
+      alert(err.message || "Failed to post adjustment.");
+    }
   };
 
   if (isSaved) {
@@ -104,12 +117,6 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
             <p className="text-slate-500 font-medium">Reconcile physical vs system inventory levels</p>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 px-6 py-4 rounded-[1.5rem] shadow-sm flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Entry Date</p>
-            <p className="text-sm font-bold text-slate-800 font-mono">{date}</p>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -137,8 +144,9 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
               ) : (
                 items.map(item => {
                   const stock = store.stockItems.find((s: StockItem) => s.id === item.itemId);
+                  const isInvalid = stock && item.type === 'Decrease' && item.qty > stock.currentStock;
                   return (
-                    <div key={item.id} className="p-6 bg-slate-50/50 rounded-[2rem] border border-slate-100 space-y-6">
+                    <div key={item.id} className={`p-6 rounded-[2rem] border transition-all ${isInvalid ? 'bg-rose-50 border-rose-200' : 'bg-slate-50/50 border-slate-100'} space-y-6`}>
                       <div className="grid grid-cols-12 gap-4 items-end">
                         <div className="col-span-4">
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">SKU / Item</label>
@@ -168,7 +176,7 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Qty</label>
                           <input 
                             type="number"
-                            className="w-full px-4 py-3 rounded-xl bg-white border border-slate-100 font-bold text-sm text-center outline-none focus:ring-2 focus:ring-blue-500"
+                            className={`w-full px-4 py-3 rounded-xl bg-white border font-bold text-sm text-center outline-none ${isInvalid ? 'border-rose-500' : 'border-slate-100'}`}
                             value={item.qty || ''}
                             onChange={e => updateItem(item.id, { qty: Number(e.target.value) })}
                             placeholder="0"
@@ -177,7 +185,7 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                         <div className="col-span-3">
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Reason</label>
                           <select 
-                            className="w-full px-4 py-3 rounded-xl bg-white border border-slate-100 font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                            className="w-full px-4 py-3 rounded-xl bg-white border border-slate-100 font-bold text-sm outline-none appearance-none"
                             value={item.reason}
                             onChange={e => updateItem(item.id, { reason: e.target.value })}
                           >
@@ -195,23 +203,18 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                       </div>
 
                       {stock && (
-                        <div className="flex items-center gap-6 px-4 py-3 bg-white/50 rounded-xl border border-dashed border-slate-200">
+                        <div className={`flex items-center gap-6 px-4 py-3 rounded-xl border border-dashed ${isInvalid ? 'bg-rose-100/50 border-rose-300' : 'bg-white/50 border-slate-200'}`}>
                           <div className="flex flex-col">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Projected Level</span>
-                            <span className="text-sm font-black text-slate-800">
+                            <span className={`text-sm font-black ${isInvalid ? 'text-rose-600' : 'text-slate-800'}`}>
                               {item.type === 'Increase' ? stock.currentStock + item.qty : stock.currentStock - item.qty} {stock.unit}
                             </span>
                           </div>
-                          <div className="w-px h-8 bg-slate-200"></div>
-                          <div className="flex-1">
-                            <input 
-                              type="text"
-                              className="w-full bg-transparent border-none text-xs font-medium text-slate-500 outline-none placeholder-slate-300"
-                              placeholder="Add specific details or audit notes for this SKU..."
-                              value={item.narration}
-                              onChange={e => updateItem(item.id, { narration: e.target.value })}
-                            />
-                          </div>
+                          {isInvalid && (
+                            <div className="flex items-center gap-2 text-rose-600 font-black text-[10px] uppercase tracking-tighter">
+                              <AlertCircle size={14} /> Negative Value Forbidden
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -223,61 +226,13 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
         </div>
 
         <div className="space-y-8">
-          <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <Calculator size={140} />
-            </div>
-            <div className="relative z-10">
-              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-8">Audit Impact</h3>
-              <div className="space-y-6">
-                <div className="flex justify-between items-center text-slate-400 font-medium">
-                  <span className="text-xs font-bold uppercase tracking-widest">SKUs Impacted</span>
-                  <span className="font-mono text-xl text-white">{items.length}</span>
-                </div>
-                <div className="flex justify-between items-center text-slate-400 font-medium">
-                  <span className="text-xs font-bold uppercase tracking-widest">Incr. Units</span>
-                  <span className="font-mono text-xl text-emerald-400">
-                    {items.filter(i => i.type === 'Increase').reduce((s, i) => s + i.qty, 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-slate-400 font-medium">
-                  <span className="text-xs font-bold uppercase tracking-widest">Decr. Units</span>
-                  <span className="font-mono text-xl text-rose-400">
-                    {items.filter(i => i.type === 'Decrease').reduce((s, i) => s + i.qty, 0)}
-                  </span>
-                </div>
-                <div className="h-px bg-slate-800 my-8"></div>
-                <div>
-                  <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1">Book Value Adj.</p>
-                  <h4 className="text-3xl font-black tracking-tighter text-white">
-                    ₹{items.reduce((sum, i) => {
-                      const stock = store.stockItems.find((s: StockItem) => s.id === i.itemId);
-                      const cost = stock?.purchasePrice || 0;
-                      return sum + (i.qty * cost);
-                    }, 0).toLocaleString()}
-                  </h4>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <button 
             onClick={handleSave}
-            disabled={items.length === 0}
+            disabled={items.length === 0 || hasDeficit}
             className="w-full py-8 bg-blue-600 hover:bg-blue-700 text-white rounded-[2.5rem] font-black text-xl flex items-center justify-center gap-4 transition-all shadow-2xl shadow-blue-600/30 group disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save size={28} /> Finalize Reconciliation
+            {hasDeficit ? 'Deficit Detected' : <><Save size={28} /> Save Adjustment</>}
           </button>
-
-          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col gap-6">
-            <div className="flex items-center gap-4">
-              <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><Info size={28} /></div>
-              <h4 className="font-black text-slate-800 text-sm uppercase tracking-widest leading-tight">Regulatory Note</h4>
-            </div>
-            <p className="text-xs text-slate-500 font-bold leading-relaxed">
-              Stock adjustments create a Journal Voucher entry. Ensure you have documentation (like a signed physical count sheet) to support these book changes during audits.
-            </p>
-          </div>
         </div>
       </div>
     </div>
