@@ -168,14 +168,20 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + K for Search (Global Command Palette)
+      // Global Command Palette (Cmd/Ctrl + K)
       if ((e.metaKey || e.ctrlKey) && e.code === 'KeyK') {
         e.preventDefault();
+        e.stopImmediatePropagation();
         setIsCommandPaletteOpen(prev => !prev);
+        return;
       }
       
-      // Alt + Key Navigation (High Reliability using e.code)
+      // Resilient Alt Navigation Engine
+      // Checking for Alt OR Alt+Shift to bypass browser menu collisions
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        const code = e.code;
+        const key = e.key.toLowerCase();
+        
         const codeMap: Record<string, View> = {
           'KeyD': 'dashboard',
           'KeyS': 'billing',
@@ -189,14 +195,33 @@ const App: React.FC = () => {
           'KeyR': 'reports'
         };
 
-        if (codeMap[e.code]) {
+        // Fallback check using char keys for non-standard layouts
+        const keyMap: Record<string, View> = {
+          'd': 'dashboard',
+          's': 'billing',
+          'p': 'purchases',
+          'i': 'stock',
+          'l': 'ledgers',
+          'b': 'daybook',
+          't': 'tax-center',
+          'v': 'vouchers',
+          'a': 'ai',
+          'r': 'reports'
+        };
+
+        const target = codeMap[code] || keyMap[key];
+
+        if (target) {
           e.preventDefault();
-          setCurrentView(codeMap[e.code]);
+          e.stopImmediatePropagation();
+          setCurrentView(target);
         }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    
+    // Using capture phase to intercept before component-level listeners
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 
   if (store.loading && !store.user) {
@@ -261,7 +286,7 @@ const App: React.FC = () => {
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Compliance</p>
             <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" shortcut="T" />
-            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} icon={<BarChart3 size={18} />} label="Financials" shortcut="R" />
+            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports'} icon={<BarChart3 size={18} />} label="Financials" shortcut="R" />
             <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" shortcut="B" />
 
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
@@ -336,7 +361,11 @@ const QuickActionItem: React.FC<{ onClick: () => void, label: string, icon: Reac
 );
 
 const NavItem: React.FC<{ active: boolean, label: string, icon: React.ReactNode, onClick: () => void, shortcut?: string }> = ({ active, label, icon, onClick, shortcut }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+  <button 
+    onClick={onClick} 
+    accessKey={shortcut?.toLowerCase()}
+    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+  >
     <span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'} transition-colors`}>{icon}</span>
     <span className="flex-1 text-left">{label}</span>
     {active ? <ChevronRight size={14} className="opacity-50" /> : shortcut && <span className="text-[9px] font-black text-slate-700 group-hover:text-blue-400/50 bg-slate-800/50 px-1.5 py-0.5 rounded transition-colors">{shortcut}</span>}
