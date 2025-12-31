@@ -168,31 +168,30 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + K for Search
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      // Cmd/Ctrl + K for Search (Global Command Palette)
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyK') {
         e.preventDefault();
         setIsCommandPaletteOpen(prev => !prev);
       }
       
-      // Alt + Key Navigation
-      if (e.altKey) {
-        const key = e.key.toLowerCase();
-        const navMap: Record<string, View> = {
-          'd': 'dashboard',
-          's': 'billing',
-          'p': 'purchases',
-          'i': 'stock',
-          'l': 'ledgers',
-          'b': 'daybook',
-          't': 'tax-center',
-          'v': 'vouchers',
-          'a': 'ai',
-          'r': 'reports'
+      // Alt + Key Navigation (High Reliability using e.code)
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        const codeMap: Record<string, View> = {
+          'KeyD': 'dashboard',
+          'KeyS': 'billing',
+          'KeyP': 'purchases',
+          'KeyI': 'stock',
+          'KeyL': 'ledgers',
+          'KeyB': 'daybook',
+          'KeyT': 'tax-center',
+          'KeyV': 'vouchers',
+          'KeyA': 'ai',
+          'KeyR': 'reports'
         };
 
-        if (navMap[key]) {
+        if (codeMap[e.code]) {
           e.preventDefault();
-          setCurrentView(navMap[key]);
+          setCurrentView(codeMap[e.code]);
         }
       }
     };
