@@ -168,7 +168,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Global Command Palette (Cmd/Ctrl + K)
       if ((e.metaKey || e.ctrlKey) && e.code === 'KeyK') {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -176,8 +175,6 @@ const App: React.FC = () => {
         return;
       }
       
-      // Resilient Alt Navigation Engine
-      // Checking for Alt OR Alt+Shift to bypass browser menu collisions
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const code = e.code;
         const key = e.key.toLowerCase();
@@ -195,7 +192,6 @@ const App: React.FC = () => {
           'KeyR': 'reports'
         };
 
-        // Fallback check using char keys for non-standard layouts
         const keyMap: Record<string, View> = {
           'd': 'dashboard',
           's': 'billing',
@@ -219,7 +215,6 @@ const App: React.FC = () => {
       }
     };
     
-    // Using capture phase to intercept before component-level listeners
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
@@ -286,7 +281,7 @@ const App: React.FC = () => {
             
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Compliance</p>
             <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" shortcut="T" />
-            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports'} icon={<BarChart3 size={18} />} label="Financials" shortcut="R" />
+            <NavItem active={currentView === 'reports'} onClick={() => setCurrentView('reports')} icon={<BarChart3 size={18} />} label="Financials" shortcut="R" />
             <NavItem active={currentView === 'daybook'} onClick={() => setCurrentView('daybook')} icon={<FileText size={18} />} label="Day Book" shortcut="B" />
 
             <p className="px-2 pt-6 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Master Data</p>
@@ -347,8 +342,6 @@ const App: React.FC = () => {
           </header>
 
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar erp-main-content">{renderView()}</div>
-          
-          {/* Floating AI Assistant Integration */}
           <FloatingAssistant store={store} />
         </main>
       </div>

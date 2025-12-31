@@ -1,4 +1,3 @@
-
 import { Ledger, StockItem, Company } from './types';
 
 /**
@@ -24,6 +23,7 @@ export const INITIAL_LEDGERS: Ledger[] = [
   { id: 'l-cgst', name: 'CGST', group: 'Duties & Taxes', type: 'Liability', openingBalance: 0, currentBalance: 0 },
   { id: 'l-sgst', name: 'SGST', group: 'Duties & Taxes', type: 'Liability', openingBalance: 0, currentBalance: 0 },
   { id: 'l-igst', name: 'IGST', group: 'Duties & Taxes', type: 'Liability', openingBalance: 0, currentBalance: 0 },
+  { id: 'l-roundoff', name: 'Round Off', group: 'Indirect Expenses', type: 'Expense', openingBalance: 0, currentBalance: 0 },
 ];
 
 // Start with zero inventory items
