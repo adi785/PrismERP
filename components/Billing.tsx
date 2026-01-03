@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Trash2, Printer, Save, CheckCircle2, Package, User, Calculator, Search, ChevronDown, Loader2, FileText, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, CheckCircle2, Package, User, Calculator, Search, ChevronDown, Loader2, FileText, AlertCircle, ArrowLeft } from 'lucide-react';
 import { StockItem } from '../types';
 import { triggerPrint, numberToWords } from '../utils/exportUtils';
 
@@ -16,7 +16,7 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
   const [items, setItems] = useState<BillingItem[]>([]);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [invoiceNo, setInvoiceNo] = useState('');
+  const [invoiceNo, setInvoiceNo] = useState(`INV-${Math.floor(100000 + Math.random() * 900000)}`);
   const [taxType, setTaxType] = useState<'Intra' | 'Inter'>('Intra');
   const [date] = useState(new Date().toISOString().split('T')[0]);
   
@@ -50,7 +50,7 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
     const finalPayable = Math.round(taxable + gstTotal);
     const roundOff = Number((finalPayable - (taxable + gstTotal)).toFixed(2));
     const hasDeficit = items.some(i => i.itemId && i.quantity > i.availableStock);
-    return { taxable, gstTotal, roundOff, total: finalPayable, hasDeficit };
+    return { taxable, cgst, sgst, igst, gstTotal, roundOff, total: finalPayable, hasDeficit };
   }, [items, taxType]);
 
   const addItem = () => {
@@ -84,23 +84,144 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
     try {
       const inventory = items.map(i => ({ itemId: i.itemId, quantity: i.quantity, rate: i.rate, amount: i.amount, type: 'Out' as const }));
       await store.addVoucher({
-        number: invoiceNo || `INV-${Date.now()}`, date, type: 'Sales', 
-        entries: [{ ledgerId: 'l-cash', debit: totals.total, credit: 0 }, { ledgerId: 'l-sales', debit: 0, credit: totals.taxable }],
-        inventory, narration: `Sales to ${customer.name}`, totalAmount: totals.total, gstTotal: totals.gstTotal
+        number: invoiceNo, date, type: 'Sales', 
+        entries: [
+          { ledgerId: 'l-cash', debit: totals.total, credit: 0 }, 
+          { ledgerId: 'l-sales', debit: 0, credit: totals.taxable },
+          { ledgerId: 'l-cgst', debit: 0, credit: totals.cgst },
+          { ledgerId: 'l-sgst', debit: 0, credit: totals.sgst }
+        ],
+        inventory, narration: `Sales to ${customer.name}`, totalAmount: totals.total, gstTotal: totals.gst
       });
       setIsSaved(true);
     } catch (e:any) { alert(e.message); } finally { setIsSaving(false); }
   };
 
+  const InvoicePrintTemplate = () => (
+    <div className="print-only w-full max-w-4xl mx-auto p-12 bg-white border-2 border-slate-900 font-inter text-slate-900">
+      <div className="flex justify-between items-start mb-10 pb-8 border-b-2 border-slate-900">
+        <div>
+          <h1 className="text-3xl font-black uppercase tracking-tighter">{store.company.name}</h1>
+          <p className="text-xs font-bold text-slate-500 mt-2 uppercase">{store.company.address}</p>
+          <p className="text-xs font-black mt-2 uppercase tracking-widest">GSTIN: {store.company.gstin}</p>
+        </div>
+        <div className="text-right">
+          <div className="bg-slate-900 text-white px-8 py-2.5 text-sm font-black uppercase tracking-[0.3em] mb-4">Tax Invoice</div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black text-slate-400 uppercase">Invoice Number</p>
+            <p className="text-lg font-black font-mono">{invoiceNo}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase mt-2">Dated</p>
+            <p className="text-sm font-black">{date}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-12 mb-10">
+        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Bill To:</h3>
+          <p className="text-base font-black uppercase">{customer.name}</p>
+          <p className="text-xs font-bold text-slate-500 mt-1">{customer.address || 'Address not specified'}</p>
+          {customer.gstin && <p className="text-xs font-black mt-2 uppercase">GSTIN: {customer.gstin}</p>}
+        </div>
+        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Supply Details:</h3>
+          <p className="text-xs font-bold">State of Supply: <span className="font-black uppercase">{taxType === 'Intra' ? 'Same State' : 'Inter-State'}</span></p>
+          <p className="text-xs font-bold mt-1">Payment Mode: <span className="font-black">CASH/CREDIT</span></p>
+        </div>
+      </div>
+
+      <table className="w-full mb-10">
+        <thead>
+          <tr className="border-b-2 border-slate-900 text-[9px] font-black uppercase tracking-widest bg-slate-50">
+            <th className="py-4 px-4 text-left">Description of Goods</th>
+            <th className="py-4 text-center">HSN</th>
+            <th className="py-4 text-center">Qty</th>
+            <th className="py-4 text-right">Rate</th>
+            <th className="py-4 text-right">GST</th>
+            <th className="py-4 text-right pr-4">Amount (₹)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((item, i) => (
+            <tr key={i}>
+              <td className="py-4 px-4">
+                <p className="text-sm font-black uppercase">{item.name}</p>
+                <p className="text-[9px] text-slate-400 font-mono">SKU: {item.sku}</p>
+              </td>
+              <td className="py-4 text-center text-xs font-mono">{item.hsn}</td>
+              <td className="py-4 text-center text-sm font-bold">{item.quantity}</td>
+              <td className="py-4 text-right text-sm font-mono">{item.rate.toLocaleString()}</td>
+              <td className="py-4 text-right text-[10px] font-bold text-slate-500">{taxType === 'Inter' ? item.igstRate : (item.cgstRate + item.sgstRate)}%</td>
+              <td className="py-4 text-right text-sm font-black pr-4">{item.amount.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t-2 border-slate-900 bg-slate-50">
+          <tr>
+            <td colSpan={4} className="py-8 px-6 align-top">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Invoice Amount in Words</p>
+              <p className="text-xs font-black italic max-w-xs">{numberToWords(totals.total)}</p>
+            </td>
+            <td colSpan={2} className="py-8 px-8 text-right space-y-3">
+              <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+                <span>Taxable Value</span>
+                <span className="text-slate-900 font-mono text-sm">₹{totals.taxable.toLocaleString()}</span>
+              </div>
+              {taxType === 'Intra' ? (
+                <>
+                  <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+                    <span>CGST</span>
+                    <span className="text-slate-900 font-mono text-sm">₹{totals.cgst.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+                    <span>SGST</span>
+                    <span className="text-slate-900 font-mono text-sm">₹{totals.sgst.toLocaleString()}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+                  <span>IGST</span>
+                  <span className="text-slate-900 font-mono text-sm">₹{totals.igst.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+                <span>Round Off</span>
+                <span className="text-slate-900 font-mono text-sm">₹{totals.roundOff}</span>
+              </div>
+              <div className="h-px bg-slate-200 my-4"></div>
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black text-slate-400 uppercase">Total Invoice</span>
+                <span className="text-4xl font-black tracking-tighter">₹{totals.total.toLocaleString()}</span>
+              </div>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div className="grid grid-cols-2 gap-20 mt-20">
+        <div className="text-center pt-8 border-t border-slate-200">
+          <p className="text-[10px] font-black uppercase text-slate-400">Receiver's Signature</p>
+        </div>
+        <div className="text-center pt-8 border-t-2 border-slate-900">
+          <p className="text-[10px] font-black uppercase text-slate-400 mb-8">For {store.company.name}</p>
+          <p className="text-[10px] font-black uppercase">Authorised Signatory</p>
+        </div>
+      </div>
+    </div>
+  );
+
   if (isSaved) {
     return (
       <div className="flex flex-col items-center py-10 md:py-20 animate-in zoom-in-95 duration-500">
-        <CheckCircle2 size={64} className="text-emerald-500 mb-6" />
-        <h2 className="text-3xl font-black mb-10 text-center">Invoice Generated</h2>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <button onClick={() => triggerPrint()} className="px-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black flex items-center gap-3"><Printer size={20} /> Print Invoice</button>
-          <button onClick={onComplete} className="px-10 py-5 border border-slate-200 rounded-[2rem] font-black text-slate-600">Daybook</button>
+        <div className="no-print flex flex-col items-center">
+          <CheckCircle2 size={64} className="text-emerald-500 mb-6" />
+          <h2 className="text-3xl font-black mb-10 text-center text-slate-900 dark:text-white">Invoice Generated Successfully</h2>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button onClick={() => triggerPrint()} className="px-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black flex items-center gap-3 shadow-2xl hover:bg-slate-800 transition-all"><Printer size={20} /> Print Tax Invoice</button>
+            <button onClick={onComplete} className="px-10 py-5 border border-slate-200 rounded-[2rem] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Go to Daybook</button>
+          </div>
         </div>
+        <InvoicePrintTemplate />
       </div>
     );
   }
@@ -111,11 +232,11 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
         <div className="flex items-center gap-4">
           <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl"><FileText size={24} /></div>
           <div>
-            <h2 className="text-2xl font-black text-slate-900">Sales Invoicing</h2>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tax Compliant Gateway</p>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Sales Invoicing</h2>
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Tax Compliant Gateway</p>
           </div>
         </div>
-        <div className="flex bg-white border border-slate-200 p-1 rounded-xl shadow-sm w-full sm:w-auto">
+        <div className="flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-sm w-full sm:w-auto">
           <button onClick={() => setTaxType('Intra')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${taxType === 'Intra' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>Intra-State</button>
           <button onClick={() => setTaxType('Inter')} className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${taxType === 'Inter' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>Inter-State</button>
         </div>
@@ -123,49 +244,47 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 md:gap-10">
         <div className="lg:col-span-3 space-y-6 md:space-y-10">
-          {/* Customer Card */}
-          <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-slate-100 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-slate-100 dark:border-slate-800 shadow-sm">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
               <div className="col-span-full">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Customer Name</label>
                 <div className="relative">
-                  <User className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
-                  <input type="text" placeholder="Legal name of client..." className="w-full pl-14 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/20" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
+                  <User className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={20} />
+                  <input type="text" placeholder="Legal name of client..." className="w-full pl-14 pr-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} />
                 </div>
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">GSTIN</label>
-                <input type="text" placeholder="Optional" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 font-mono text-sm font-bold uppercase" value={customer.gstin} onChange={e => setCustomer({...customer, gstin: e.target.value.toUpperCase()})} />
+                <input type="text" placeholder="Optional" className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 font-mono text-sm font-bold uppercase text-slate-900 dark:text-white" value={customer.gstin} onChange={e => setCustomer({...customer, gstin: e.target.value.toUpperCase()})} />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Invoice Ref</label>
-                <input type="text" disabled className="w-full px-6 py-4 rounded-2xl bg-slate-100 border border-slate-200 font-mono text-sm font-bold text-slate-400" value={invoiceNo || 'Auto-generated'} />
+                <input type="text" value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 font-mono text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20" />
               </div>
             </div>
           </div>
 
-          {/* Line Items - Fully Responsive Card Stack */}
-          <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-slate-100 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-slate-100 dark:border-slate-800 shadow-sm">
             <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xs font-black text-slate-950 uppercase tracking-widest">Billing Units</h3>
+              <h3 className="text-xs font-black text-slate-950 dark:text-white uppercase tracking-widest">Billing Units</h3>
               <button onClick={addItem} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-lg shadow-blue-600/20"><Plus size={16} /> Add Line</button>
             </div>
 
             <div className="space-y-6">
               {items.map(item => (
-                <div key={item.id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 relative group transition-all" ref={activeSearchId === item.id ? searchRef : null}>
+                <div key={item.id} className="p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-3xl border border-slate-100 dark:border-slate-800 relative group transition-all" ref={activeSearchId === item.id ? searchRef : null}>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 items-end">
                     <div className="md:col-span-6 relative">
                       <label className="block text-[9px] font-black text-slate-400 uppercase mb-2">Select Item</label>
                       <input 
-                        type="text" className="w-full px-5 py-3 rounded-xl bg-white border border-slate-200 font-bold text-sm" 
+                        type="text" className="w-full px-5 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-white" 
                         placeholder={item.name || "Search SKU..."} value={activeSearchId === item.id ? searchQuery : (item.name || '')} 
                         onFocus={() => { setActiveSearchId(item.id); setSearchQuery(''); }} onChange={e => setSearchQuery(e.target.value)} 
                       />
                       {activeSearchId === item.id && (
-                        <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 shadow-2xl rounded-2xl z-50 max-h-60 overflow-y-auto p-2">
+                        <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl z-50 max-h-60 overflow-y-auto p-2">
                           {store.stockItems.filter((s: any) => s.name.toLowerCase().includes(searchQuery.toLowerCase())).map((s: any) => (
-                            <button key={s.id} onClick={() => { updateItem(item.id, { itemId: s.id }); setActiveSearchId(null); }} className="w-full px-4 py-3 text-left hover:bg-blue-600 hover:text-white rounded-xl text-sm font-bold truncate">
+                            <button key={s.id} onClick={() => { updateItem(item.id, { itemId: s.id }); setActiveSearchId(null); }} className="w-full px-4 py-3 text-left hover:bg-blue-600 hover:text-white rounded-xl text-sm font-bold truncate dark:text-slate-200">
                               {s.name} (Stock: {s.currentStock})
                             </button>
                           ))}
@@ -175,15 +294,15 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
                     <div className="grid grid-cols-2 md:col-span-5 gap-4">
                       <div>
                         <label className="block text-[9px] font-black text-slate-400 uppercase mb-2">Qty</label>
-                        <input type="number" className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 font-bold text-sm text-center" value={item.quantity || ''} onChange={e => updateItem(item.id, { quantity: Number(e.target.value) })} />
+                        <input type="number" className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-sm text-center text-slate-900 dark:text-white" value={item.quantity || ''} onChange={e => updateItem(item.id, { quantity: Number(e.target.value) })} />
                       </div>
                       <div>
                         <label className="block text-[9px] font-black text-slate-400 uppercase mb-2">Rate</label>
-                        <input type="number" className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 font-bold text-sm text-right" value={item.rate || ''} onChange={e => updateItem(item.id, { rate: Number(e.target.value) })} />
+                        <input type="number" className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold text-sm text-right text-slate-900 dark:text-white" value={item.rate || ''} onChange={e => updateItem(item.id, { rate: Number(e.target.value) })} />
                       </div>
                     </div>
                     <div className="md:col-span-1 flex justify-end">
-                      <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="p-3 text-rose-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 size={20} /></button>
+                      <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="p-3 text-rose-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-all"><Trash2 size={20} /></button>
                     </div>
                   </div>
                   {item.itemId && item.quantity > item.availableStock && (
@@ -191,12 +310,11 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
                   )}
                 </div>
               ))}
-              {items.length === 0 && <p className="text-center py-10 text-slate-300 font-bold uppercase text-[10px] tracking-widest border-2 border-dashed border-slate-100 rounded-3xl">No items added to invoice</p>}
+              {items.length === 0 && <p className="text-center py-10 text-slate-300 font-bold uppercase text-[10px] tracking-widest border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-3xl">No items added to invoice</p>}
             </div>
           </div>
         </div>
 
-        {/* Floating/Stacked Summary Card */}
         <div className="space-y-6">
           <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-10 border-b border-white/5 pb-6">Payment Summary</h3>
@@ -220,6 +338,7 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
           </button>
         </div>
       </div>
+      <InvoicePrintTemplate />
     </div>
   );
 };

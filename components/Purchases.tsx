@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, Printer, CheckCircle2, ChevronDown, FileText, Loader2, Search, Package, Building2, Calculator, ShoppingCart, Camera, Sparkles } from 'lucide-react';
 import { StockItem, Ledger } from '../types';
@@ -248,17 +249,17 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20 no-print">
       {isSaved ? (
         <div className="flex flex-col items-center py-20">
           <div className="no-print text-center">
             <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mb-6 mx-auto shadow-xl">
               <CheckCircle2 size={56} className="text-emerald-600" />
             </div>
-            <h2 className="text-4xl font-black text-slate-900 mb-10 tracking-tight">Purchase Successful</h2>
+            <h2 className="text-4xl font-black text-slate-900 dark:text-white mb-10 tracking-tight">Purchase Successful</h2>
             <div className="flex gap-4 justify-center">
               <button onClick={() => triggerPrint()} className="px-10 py-5 bg-slate-900 text-white rounded-[2rem] font-black flex items-center gap-3 shadow-2xl hover:bg-slate-800 transition-all"><Printer size={24} /> Print Purchase Bill</button>
-              <button onClick={onComplete} className="px-10 py-5 border border-slate-200 rounded-[2rem] font-black text-slate-600 hover:bg-slate-50 transition-all">Daybook</button>
+              <button onClick={onComplete} className="px-10 py-5 border border-slate-200 rounded-[2rem] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Daybook</button>
             </div>
           </div>
           <PurchasePrintTemplate />
@@ -269,8 +270,8 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
             <div className="flex items-center gap-6">
               <div className="p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><ShoppingCart size={40} /></div>
               <div>
-                <h2 className="text-4xl font-black text-slate-900 tracking-tight">Purchase Bill Entry</h2>
-                <p className="text-slate-500 font-bold text-sm uppercase tracking-widest mt-1 opacity-70">Registering material inward for {store.company.name}</p>
+                <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Purchase Bill Entry</h2>
+                <p className="text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-widest mt-1 opacity-70">Registering material inward for {store.company.name}</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -278,11 +279,11 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isScanning}
-                className="flex items-center gap-3 px-8 py-4 bg-blue-50 text-blue-700 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all shadow-md group border-2 border-blue-200"
+                className="flex items-center gap-3 px-8 py-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all shadow-md group border-2 border-blue-200 dark:border-blue-800"
               >
                 {isScanning ? <Loader2 size={20} className="animate-spin" /> : <><Sparkles size={20} className="animate-pulse" /> AI Scan Bill</>}
               </button>
-              <button onClick={() => triggerPrint()} className="flex items-center gap-3 px-8 py-4 bg-white border border-slate-200 rounded-[2rem] text-slate-700 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-md">
+              <button onClick={() => triggerPrint()} className="flex items-center gap-3 px-8 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-md">
                 <Printer size={20} /> Print Draft
               </button>
             </div>
@@ -290,16 +291,16 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
             <div className="lg:col-span-3 space-y-10">
-              <div className="bg-white rounded-[3.5rem] p-12 border border-slate-100 shadow-xl shadow-slate-200/50">
+              <div className="bg-white dark:bg-slate-900 rounded-[3.5rem] p-12 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Vendor Invoice #</label>
-                    <input type="text" className="w-full px-8 py-6 rounded-[2rem] bg-slate-50 border-2 border-slate-100 font-black text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-300 text-lg" placeholder="TAX-INV-001" value={vendor.billNo} onChange={e => setVendor({ ...vendor, billNo: e.target.value })} />
+                    <input type="text" className="w-full px-8 py-6 rounded-[2rem] bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-100 dark:border-slate-800 font-black text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-300 text-lg" placeholder="TAX-INV-001" value={vendor.billNo} onChange={e => setVendor({ ...vendor, billNo: e.target.value })} />
                   </div>
                   <div>
                     <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Vendor Account</label>
                     <div className="relative">
-                      <select className="w-full px-8 py-6 rounded-[2rem] bg-slate-50 border-2 border-slate-100 font-black text-slate-900 appearance-none outline-none focus:ring-4 focus:ring-blue-500/10" value={vendor.ledgerId} onChange={e => setVendor({ ...vendor, ledgerId: e.target.value })}>
+                      <select className="w-full px-8 py-6 rounded-[2rem] bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-100 dark:border-slate-800 font-black text-slate-900 dark:text-white appearance-none outline-none focus:ring-4 focus:ring-blue-500/10" value={vendor.ledgerId} onChange={e => setVendor({ ...vendor, ledgerId: e.target.value })}>
                         <option value="">Cash Purchase</option>
                         {store.ledgers.filter((l: Ledger) => l.group === 'Sundry Creditors').map((l: Ledger) => (<option key={l.id} value={l.id}>{l.name}</option>))}
                       </select>
@@ -309,39 +310,39 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
                 </div>
               </div>
 
-              <div className="bg-white rounded-[3.5rem] p-12 border border-slate-100 shadow-xl shadow-slate-200/50">
+              <div className="bg-white dark:bg-slate-900 rounded-[3.5rem] p-12 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
                 <div className="flex justify-between items-center mb-12">
                   <div className="flex items-center gap-5">
                     <div className="p-4 bg-slate-950 text-white rounded-3xl"><Package size={28} /></div>
-                    <h3 className="text-sm font-black text-slate-950 uppercase tracking-[0.3em]">Purchase Lines</h3>
+                    <h3 className="text-sm font-black text-slate-950 dark:text-white uppercase tracking-[0.3em]">Purchase Lines</h3>
                   </div>
                   <button onClick={handleAddItem} className="px-10 py-5 bg-blue-600 text-white rounded-[1.5rem] text-xs font-black uppercase tracking-widest hover:bg-blue-700 shadow-2xl shadow-blue-600/30 flex items-center gap-3 transition-all"><Plus size={24} /> Add SKU</button>
                 </div>
                 <div className="space-y-10">
                   {items.map(item => (
-                    <div key={item.id} className="p-10 bg-slate-50/50 rounded-[3.5rem] border border-slate-100 space-y-10 relative group hover:bg-white hover:shadow-2xl transition-all duration-500" ref={activeSearchId === item.id ? searchRef : null}>
+                    <div key={item.id} className="p-10 bg-slate-50/50 dark:bg-slate-800/30 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 space-y-10 relative group hover:bg-white dark:hover:bg-slate-800 hover:shadow-2xl transition-all duration-500" ref={activeSearchId === item.id ? searchRef : null}>
                       <div className="grid grid-cols-12 gap-10 items-end">
                         <div className="col-span-5 relative">
                           <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Product Master Search</label>
-                          <input type="text" className="w-full px-8 py-6 rounded-2xl bg-white border-2 border-slate-100 font-black text-base outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" placeholder={item.name || "Enter SKU..."} value={activeSearchId === item.id ? searchQuery : (item.name || '')} onFocus={() => { setActiveSearchId(item.id); setSearchQuery(''); }} onChange={e => setSearchQuery(e.target.value)} />
+                          <input type="text" className="w-full px-8 py-6 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 font-black text-base text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" placeholder={item.name || "Enter SKU..."} value={activeSearchId === item.id ? searchQuery : (item.name || '')} onFocus={() => { setActiveSearchId(item.id); setSearchQuery(''); }} onChange={e => setSearchQuery(e.target.value)} />
                           {activeSearchId === item.id && (
-                            <div className="absolute left-0 right-0 top-full mt-5 bg-white border-2 border-slate-200 shadow-2xl rounded-[2.5rem] z-[100] max-h-72 overflow-y-auto p-3">
+                            <div className="absolute left-0 right-0 top-full mt-5 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 shadow-2xl rounded-[2.5rem] z-[100] max-h-72 overflow-y-auto p-3">
                               {filteredStock.map(s => (
-                                <button key={s.id} onClick={() => { updateItem(item.id, { itemId: s.id }); setActiveSearchId(null); }} className="w-full px-8 py-6 text-left border-b border-slate-50 hover:bg-blue-600 hover:text-white rounded-3xl transition-all font-black text-base">{s.name} ({s.sku})</button>
+                                <button key={s.id} onClick={() => { updateItem(item.id, { itemId: s.id }); setActiveSearchId(null); }} className="w-full px-8 py-6 text-left border-b border-slate-50 dark:border-slate-800 hover:bg-blue-600 hover:text-white rounded-3xl transition-all font-black text-base dark:text-slate-200">{s.name} ({s.sku})</button>
                               ))}
                             </div>
                           )}
                         </div>
                         <div className="col-span-2">
                           <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Qty</label>
-                          <input type="number" className="w-full px-6 py-6 rounded-2xl bg-white border-2 border-slate-100 font-black text-base text-center outline-none" value={item.qty || ''} onChange={e => updateItem(item.id, { qty: Number(e.target.value) })} />
+                          <input type="number" className="w-full px-6 py-6 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 font-black text-base text-center text-slate-900 dark:text-white outline-none" value={item.qty || ''} onChange={e => updateItem(item.id, { qty: Number(e.target.value) })} />
                         </div>
                         <div className="col-span-3">
                           <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Cost Rate (₹)</label>
-                          <input type="number" className="w-full px-8 py-6 rounded-2xl bg-white border-2 border-slate-100 font-black text-base text-right font-mono outline-none" value={item.rate || ''} onChange={e => updateItem(item.id, { rate: Number(e.target.value) })} />
+                          <input type="number" className="w-full px-8 py-6 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 font-black text-base text-right font-mono text-slate-900 dark:text-white outline-none" value={item.rate || ''} onChange={e => updateItem(item.id, { rate: Number(e.target.value) })} />
                         </div>
                         <div className="col-span-2 flex items-center justify-end pb-2">
-                          <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="p-5 text-rose-300 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={28} /></button>
+                          <button onClick={() => setItems(items.filter(i => i.id !== item.id))} className="p-5 text-rose-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-2xl transition-all"><Trash2 size={28} /></button>
                         </div>
                       </div>
                     </div>

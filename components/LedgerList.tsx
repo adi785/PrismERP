@@ -1,241 +1,102 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Plus, Filter, Download, MoreVertical, Wallet, Landmark, Users, Briefcase, X, ArrowLeft, Printer, FileSpreadsheet, Copy, Edit3, Eye } from 'lucide-react';
+import { Search, Plus, Filter, Download, MoreVertical, Wallet, Landmark, Users, Briefcase, X, ArrowLeft, Printer, FileSpreadsheet, Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import { Ledger, AccountType, Voucher } from '../types';
 import { downloadCSV, triggerPrint } from '../utils/exportUtils';
-
-const ACCOUNT_GROUPS = [
-  'Bank Accounts',
-  'Cash-in-hand',
-  'Sundry Debtors',
-  'Sundry Creditors',
-  'Sales Accounts',
-  'Purchase Accounts',
-  'Duties & Taxes',
-  'Direct Expenses',
-  'Indirect Expenses',
-  'Fixed Assets',
-  'Capital Account'
-];
-
-const ACCOUNT_TYPES: AccountType[] = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
 const LedgerList: React.FC<{ store: any }> = ({ store }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Ledger, direction: 'asc' | 'desc' } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    group: '',
-    type: 'Asset' as AccountType,
-    openingBalance: 0
-  });
+  const [formData, setFormData] = useState({ name: '', group: '', type: 'Asset' as AccountType, openingBalance: 0 });
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setActiveMenuId(null);
-      }
-    };
+    const handleClickOutside = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setActiveMenuId(null); };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredLedgers = store.ledgers.filter((l: Ledger) => 
-    l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    l.group.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSort = (key: keyof Ledger) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
 
-  const selectedLedger = useMemo(() => 
-    store.ledgers.find((l: Ledger) => l.id === selectedLedgerId),
-    [selectedLedgerId, store.ledgers]
-  );
+  const filteredLedgers = useMemo(() => {
+    let items = store.ledgers.filter((l: Ledger) => 
+      l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      l.group.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (sortConfig) {
+      items = [...items].sort((a: any, b: any) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [store.ledgers, searchTerm, sortConfig]);
+
+  const selectedLedger = useMemo(() => store.ledgers.find((l: Ledger) => l.id === selectedLedgerId), [selectedLedgerId, store.ledgers]);
 
   const ledgerTransactions = useMemo(() => {
     if (!selectedLedgerId) return [];
-    const sortedVouchers = [...store.vouchers].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let runningBalance = selectedLedger?.openingBalance || 0;
-    const history: any[] = [];
-
-    history.push({
-      date: 'Opening Balance',
-      type: '-',
-      number: '-',
-      narration: 'Opening balance of the account',
-      debit: 0,
-      credit: 0,
-      balance: runningBalance
-    });
-
-    sortedVouchers.forEach((v: Voucher) => {
+    const history: any[] = [{ date: 'Opening', type: '-', number: '-', narration: 'Balance B/F', debit: 0, credit: 0, balance: runningBalance }];
+    [...store.vouchers].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).forEach((v: Voucher) => {
       const entry = v.entries.find(e => e.ledgerId === selectedLedgerId);
       if (entry) {
         let change = entry.debit - entry.credit;
-        if (selectedLedger && ['Liability', 'Income', 'Equity'].includes(selectedLedger.type)) {
-          change = entry.credit - entry.debit;
-        }
+        if (selectedLedger && ['Liability', 'Income', 'Equity'].includes(selectedLedger.type)) change = entry.credit - entry.debit;
         runningBalance += change;
-        history.push({
-          date: v.date,
-          type: v.type,
-          number: v.number,
-          narration: v.narration,
-          debit: entry.debit,
-          credit: entry.credit,
-          balance: runningBalance
-        });
+        history.push({ date: v.date, type: v.type, number: v.number, narration: v.narration, debit: entry.debit, credit: entry.credit, balance: runningBalance });
       }
     });
-
     return history.reverse();
   }, [selectedLedgerId, store.vouchers, selectedLedger]);
-
-  const ledgerTotals = useMemo(() => {
-    return ledgerTransactions.reduce((acc, curr) => {
-      if (curr.date === 'Opening Balance') return acc;
-      return {
-        debit: acc.debit + (curr.debit || 0),
-        credit: acc.credit + (curr.credit || 0)
-      };
-    }, { debit: 0, credit: 0 });
-  }, [ledgerTransactions]);
-
-  const handleExportCSV = () => {
-    downloadCSV(store.ledgers, `Chart_of_Accounts_${store.company.name}`);
-  };
-
-  const handleExportStatement = () => {
-    if (!selectedLedger) return;
-    downloadCSV(ledgerTransactions, `Ledger_${selectedLedger.name}_Statement`);
-  };
-
-  const getIcon = (type: string) => {
-    switch(type) {
-      case 'Asset': return <Landmark size={18} className="text-blue-500" />;
-      case 'Liability': return <Users size={18} className="text-rose-500" />;
-      case 'Income': return <Briefcase size={18} className="text-emerald-500" />;
-      default: return <Wallet size={18} className="text-slate-500" />;
-    }
-  };
-
-  const handleCreateLedger = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name || !formData.group) {
-      alert("Please fill in all required fields.");
-      return;
-    }
-    store.addLedger(formData);
-    setFormData({ name: '', group: '', type: 'Asset', openingBalance: 0 });
-    setIsModalOpen(false);
-  };
 
   if (selectedLedger) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setSelectedLedgerId(null)}
-            className="p-2 hover:bg-slate-200 rounded-xl text-slate-500 transition-all no-print"
-          >
-            <ArrowLeft size={20} />
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <button onClick={() => setSelectedLedgerId(null)} className="p-2.5 md:p-3 bg-white dark:bg-slate-800 rounded-xl md:rounded-2xl text-slate-500 border border-slate-200 dark:border-slate-700 no-print hover:bg-slate-50 w-fit"><ArrowLeft size={20} /></button>
           <div className="flex-1">
-            <h2 className="text-2xl font-bold text-slate-800">{selectedLedger.name}</h2>
-            <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
-              <span className="font-semibold px-2 py-0.5 bg-slate-100 rounded text-slate-600">{selectedLedger.group}</span>
-              <span>•</span>
-              <span className="uppercase font-bold tracking-tighter text-[10px]">{selectedLedger.type}</span>
-            </div>
+            <h2 className="text-xl md:text-2xl font-bold dark:text-white">{selectedLedger.name}</h2>
+            <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{selectedLedger.group} • {selectedLedger.type}</p>
           </div>
-          <div className="flex gap-3 no-print">
-            <button 
-              onClick={handleExportStatement}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition-all font-semibold text-sm"
-            >
-              <FileSpreadsheet size={16} /> Excel (CSV)
-            </button>
-            <button 
-              onClick={triggerPrint}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all font-semibold text-sm"
-            >
-              <Printer size={16} /> Print Statement
-            </button>
+          <div className="flex gap-2 no-print">
+            <button onClick={() => downloadCSV(ledgerTransactions, `Ledger_${selectedLedger.name}`)} className="px-3 md:px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs">CSV</button>
+            <button onClick={triggerPrint} className="flex-1 sm:flex-none px-4 md:px-6 py-2 bg-slate-900 dark:bg-blue-600 text-white rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs shadow-xl">Print Statement</button>
           </div>
         </div>
 
-        {/* Print Header (Only visible in print) */}
-        <div className="print-only text-center mb-10 pb-6 border-b-2 border-slate-900">
-          <h1 className="text-3xl font-bold uppercase">{store.company.name}</h1>
-          <p className="text-sm font-medium">{store.company.address}</p>
-          <p className="text-xs font-mono uppercase mt-2">GSTIN: {store.company.gstin}</p>
-          <div className="mt-6 flex justify-between items-end border-t border-slate-200 pt-4">
-            <div className="text-left">
-              <p className="text-xs uppercase font-bold text-slate-500">Account Statement</p>
-              <h3 className="text-xl font-black text-slate-900">{selectedLedger.name}</h3>
-            </div>
-            <div className="text-right">
-              <p className="text-xs uppercase font-bold text-slate-500">Statement Date</p>
-              <p className="text-sm font-bold">{new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center no-print">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Transaction History</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left min-w-[700px]">
               <thead>
-                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/10">
-                  <th className="px-8 py-4">Date</th>
-                  <th className="px-6 py-4">Voucher</th>
-                  <th className="px-6 py-4">Narration</th>
-                  <th className="px-6 py-4 text-right">Debit (₹)</th>
-                  <th className="px-6 py-4 text-right">Credit (₹)</th>
-                  <th className="px-8 py-4 text-right">Balance (₹)</th>
+                <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 dark:border-slate-800">
+                  <th className="px-6 md:px-8 py-4 md:py-5">Date</th>
+                  <th className="px-4 md:px-6 py-4 md:py-5">Particulars</th>
+                  <th className="px-4 md:px-6 py-4 md:py-5 text-right">Debit (₹)</th>
+                  <th className="px-4 md:px-6 py-4 md:py-5 text-right">Credit (₹)</th>
+                  <th className="px-6 md:px-8 py-4 md:py-5 text-right">Balance (₹)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {ledgerTransactions.map((tx, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-8 py-4 text-sm font-medium text-slate-600">{tx.date}</td>
-                    <td className="px-6 py-4">
-                      {tx.type !== '-' ? (
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-800">{tx.type}</span>
-                          <span className="text-[10px] font-mono text-slate-400">{tx.number}</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate">{tx.narration}</td>
-                    <td className="px-6 py-4 text-right font-mono-erp text-sm text-slate-700">
-                      {tx.debit > 0 ? tx.debit.toLocaleString() : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right font-mono-erp text-sm text-slate-700">
-                      {tx.credit > 0 ? tx.credit.toLocaleString() : '-'}
-                    </td>
-                    <td className="px-8 py-4 text-right font-mono-erp font-bold text-slate-800">
-                      ₹{Math.abs(tx.balance).toLocaleString()} {tx.balance >= 0 ? 'Dr' : 'Cr'}
-                    </td>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {ledgerTransactions.map((tx, i) => (
+                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-6 md:px-8 py-4 md:py-5 text-xs md:text-sm font-bold whitespace-nowrap">{tx.date}</td>
+                    <td className="px-4 md:px-6 py-4 md:py-5 text-xs md:text-sm text-slate-500 truncate max-w-[200px]">{tx.narration}</td>
+                    <td className="px-4 md:px-6 py-4 md:py-5 text-right font-mono text-[10px] md:text-xs">{tx.debit > 0 ? tx.debit.toLocaleString() : '-'}</td>
+                    <td className="px-4 md:px-6 py-4 md:py-5 text-right font-mono text-[10px] md:text-xs">{tx.credit > 0 ? tx.credit.toLocaleString() : '-'}</td>
+                    <td className="px-6 md:px-8 py-4 md:py-5 text-right font-mono font-black text-xs md:text-sm text-slate-900 dark:text-white whitespace-nowrap">₹{Math.abs(tx.balance).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-slate-50/50 font-bold border-t-2 border-slate-200">
-                <tr>
-                  <td colSpan={3} className="px-8 py-4 text-right uppercase text-[10px] tracking-widest text-slate-400">Transaction Totals</td>
-                  <td className="px-6 py-4 text-right font-mono-erp text-sm text-slate-800">₹{ledgerTotals.debit.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-right font-mono-erp text-sm text-slate-800">₹{ledgerTotals.credit.toLocaleString()}</td>
-                  <td className="px-8 py-4 text-right font-mono-erp font-black text-slate-900">
-                    ₹{Math.abs(selectedLedger.currentBalance).toLocaleString()} {selectedLedger.currentBalance >= 0 ? 'Dr' : 'Cr'}
-                  </td>
-                </tr>
-              </tfoot>
             </table>
           </div>
         </div>
@@ -244,207 +105,62 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between no-print">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Chart of Accounts</h2>
-          <p className="text-slate-500">Total {store.ledgers.length} primary and sub-ledgers</p>
+          <h2 className="text-xl md:text-2xl font-black tracking-tight dark:text-white">Chart of Accounts</h2>
+          <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-widest">Master Ledger Inventory</p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={triggerPrint}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition-all font-semibold text-sm"
-          >
-            <Printer size={16} /> Print Chart
-          </button>
-          <button 
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition-all font-semibold text-sm"
-          >
-            <Download size={16} /> Export (CSV)
-          </button>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all font-bold text-sm"
-          >
-            <Plus size={18} /> Create Ledger
+        <div className="flex gap-3 w-full sm:w-auto">
+          <button onClick={() => setIsModalOpen(true)} className="flex-1 sm:flex-none px-4 md:px-6 py-2.5 md:py-3 bg-blue-600 text-white rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+            <Plus size={16} /> New Ledger
           </button>
         </div>
       </div>
 
-      {/* Print Chart of Accounts Header */}
-      <div className="print-only mb-10 pb-8 border-b-2 border-slate-900">
-        <h1 className="text-3xl font-black uppercase text-slate-900">{store.company.name}</h1>
-        <p className="text-sm font-bold text-slate-500 mt-2 uppercase tracking-widest">Master Chart of Accounts • {store.company.financialYear}</p>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex gap-4 no-print">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search by name or group..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-            />
+      <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input type="text" placeholder="Filter by name or group..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-6 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border-none text-xs md:text-sm font-bold dark:text-white" />
           </div>
         </div>
-
-        <div className="overflow-x-auto relative min-h-[400px]">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto custom-scrollbar min-h-[400px]">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
-              <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50/30">
-                <th className="px-8 py-4">Particulars</th>
-                <th className="px-6 py-4">Group</th>
-                <th className="px-6 py-4">Type</th>
-                <th className="px-6 py-4 text-right">Balance (₹)</th>
-                <th className="px-8 py-4 no-print"></th>
+              <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 dark:border-slate-800">
+                <SortHeader label="Account Name" active={sortConfig?.key === 'name'} dir={sortConfig?.direction} onClick={() => handleSort('name')} />
+                <SortHeader label="Account Group" active={sortConfig?.key === 'group'} dir={sortConfig?.direction} onClick={() => handleSort('group')} />
+                <SortHeader label="Class" active={sortConfig?.key === 'type'} dir={sortConfig?.direction} onClick={() => handleSort('type')} />
+                <SortHeader label="Current Balance" active={sortConfig?.key === 'currentBalance'} dir={sortConfig?.direction} onClick={() => handleSort('currentBalance')} className="text-right" />
+                <th className="px-8 py-5 no-print w-10"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredLedgers.map((l: Ledger) => (
-                <tr 
-                  key={l.id} 
-                  className="hover:bg-blue-50/30 transition-colors group cursor-pointer"
-                  onClick={() => setSelectedLedgerId(l.id)}
-                >
-                  <td className="px-8 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-white transition-colors no-print">
-                        {getIcon(l.type)}
-                      </div>
-                      <span className="font-bold text-slate-800">{l.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold">
-                      {l.group}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-500 uppercase tracking-tighter text-[10px] font-black">{l.type}</td>
-                  <td className={`px-6 py-4 text-right font-mono-erp font-bold ${l.currentBalance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                    ₹{Math.abs(l.currentBalance).toLocaleString()} {l.currentBalance >= 0 ? 'Dr' : 'Cr'}
-                  </td>
-                  <td className="px-8 py-4 text-right no-print relative">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMenuId(activeMenuId === l.id ? null : l.id);
-                      }}
-                      className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    {activeMenuId === l.id && (
-                      <div 
-                        ref={menuRef}
-                        className="absolute right-8 top-full z-50 mt-1 w-48 bg-white border border-slate-200 shadow-xl rounded-xl p-2 animate-in fade-in slide-in-from-top-1 duration-200"
-                      >
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); setSelectedLedgerId(l.id); setActiveMenuId(null); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-all"
-                        >
-                          <Eye size={14} /> View Statement
-                        </button>
-                      </div>
-                    )}
-                  </td>
+                <tr key={l.id} onClick={() => setSelectedLedgerId(l.id)} className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer group transition-colors">
+                  <td className="px-8 py-5 font-bold text-xs md:text-sm text-slate-800 dark:text-slate-200 whitespace-nowrap">{l.name}</td>
+                  <td className="px-6 py-5"><span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-tighter whitespace-nowrap">{l.group}</span></td>
+                  <td className="px-6 py-5 text-[9px] md:text-[10px] font-black uppercase text-slate-400 whitespace-nowrap">{l.type}</td>
+                  <td className={`px-6 py-5 text-right font-mono font-black text-xs md:text-sm whitespace-nowrap ${l.currentBalance < 0 ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>₹{Math.abs(l.currentBalance).toLocaleString()} {l.currentBalance >= 0 ? 'Dr' : 'Cr'}</td>
+                  <td className="px-8 py-5 text-right no-print"><MoreVertical size={16} className="text-slate-300 group-hover:text-slate-600" /></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="text-xl font-bold text-slate-800">Create New Ledger</h3>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 hover:bg-white hover:shadow rounded-xl transition-all text-slate-400"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateLedger} className="p-8 space-y-6">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ledger Name</label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="e.g. ICICI Bank Current A/c"
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Group</label>
-                  <select 
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-sm"
-                    value={formData.group}
-                    onChange={e => setFormData({ ...formData, group: e.target.value })}
-                    required
-                  >
-                    <option value="">Select Group...</option>
-                    {ACCOUNT_GROUPS.map(g => (
-                      <option key={g} value={g}>{g}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Type</label>
-                  <select 
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-sm"
-                    value={formData.type}
-                    onChange={e => setFormData({ ...formData, type: e.target.value as AccountType })}
-                  >
-                    {ACCOUNT_TYPES.map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Opening Balance (₹)</label>
-                <input 
-                  type="number"
-                  placeholder="0.00"
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono-erp"
-                  value={formData.openingBalance || ''}
-                  onChange={e => setFormData({ ...formData, openingBalance: Number(e.target.value) })}
-                />
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button 
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-all"
-                >
-                  Create Ledger
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+
+const SortHeader = ({ label, active, dir, onClick, className = "" }: any) => (
+  <th className={`px-8 py-4 md:py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${className}`} onClick={onClick}>
+    <div className={`flex items-center gap-2 ${className.includes('right') ? 'justify-end' : ''} whitespace-nowrap`}>
+      {label}
+      {active ? (dir === 'asc' ? <ChevronUp size={12} className="text-blue-500" /> : <ChevronDown size={12} className="text-blue-500" />) : <ChevronDown size={12} className="text-slate-200" />}
+    </div>
+  </th>
+);
 
 export default LedgerList;

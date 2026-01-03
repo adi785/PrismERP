@@ -9,6 +9,9 @@ export const useERPStore = () => {
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('prism_erp_theme') as 'light' | 'dark') || 'light';
+  });
   const [company, setCompany] = useState<Company | null>(() => {
     try {
       const cached = localStorage.getItem('prism_erp_active_company_cache');
@@ -21,6 +24,17 @@ export const useERPStore = () => {
   const [stats, setStats] = useState({ totalSales: 0, totalPurchases: 0, bankBalance: 0, cashBalance: 0 });
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('prism_erp_theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
   const refreshData = useCallback(async (providedUser?: User | null) => {
     setIsSyncing(true);
@@ -90,12 +104,10 @@ export const useERPStore = () => {
 
   const logout = async () => {
     await api.logout();
+    localStorage.removeItem('prism_erp_session');
+    localStorage.removeItem('prism_erp_company_id');
     localStorage.removeItem('prism_erp_active_company_cache');
-    setUser(null);
-    setCompany(null);
-    setLedgers([]);
-    setStockItems([]);
-    setVouchers([]);
+    localStorage.removeItem('prism_erp_force_local');
   };
 
   const createCompany = async (name: string, gstin: string, financialYear: string, address: string) => {
@@ -124,6 +136,7 @@ export const useERPStore = () => {
 
   const updateStockItem = useCallback(async (id: string, updates: Partial<StockItem>) => {
     const updated = await api.updateStockItem(id, updates);
+    setLedgers(await api.getLedgers()); // Update related balances
     setStockItems(prev => prev.map(item => item.id === id ? updated : item));
   }, []);
 
@@ -135,7 +148,6 @@ export const useERPStore = () => {
   }, []);
 
   const recordVoucher = useCallback(async (voucherData: Omit<Voucher, 'id'>) => {
-    // INVENTORY PRE-FLIGHT VALIDATION
     if (voucherData.inventory && voucherData.inventory.length > 0) {
       const stockChanges: Record<string, number> = {};
       for (const mov of voucherData.inventory) {
@@ -143,7 +155,6 @@ export const useERPStore = () => {
         stockChanges[mov.itemId] = (stockChanges[mov.itemId] || 0) + delta;
       }
 
-      // Ensure no SKU drops below zero
       for (const [itemId, change] of Object.entries(stockChanges)) {
         const item = stockItems.find(i => i.id === itemId);
         if (item) {
@@ -158,20 +169,13 @@ export const useERPStore = () => {
     const saved = await api.recordVoucher(voucherData);
     setVouchers(prev => [saved, ...prev]);
     
-    // Process Updates if validation passed
     if (voucherData.inventory && voucherData.inventory.length > 0) {
-      for (const mov of voucherData.inventory) {
-        const delta = mov.type === 'In' ? mov.quantity : -mov.quantity;
-        const item = stockItems.find(i => i.id === mov.itemId);
-        if (item) {
-          await api.updateStockItem(mov.itemId, { currentStock: item.currentStock + delta });
-        }
-      }
+      const updatedStock = await api.getStockItems();
+      setStockItems(updatedStock);
     }
 
-    const [l, s, st] = await Promise.all([api.getLedgers(), api.getStockItems(), api.getStats()]);
+    const [l, st] = await Promise.all([api.getLedgers(), api.getStats()]);
     setLedgers(l);
-    setStockItems(s);
     setStats(st);
   }, [stockItems]);
 
@@ -185,6 +189,8 @@ export const useERPStore = () => {
     stats,
     loading,
     isSyncing,
+    theme,
+    toggleTheme,
     login,
     signup,
     logout,

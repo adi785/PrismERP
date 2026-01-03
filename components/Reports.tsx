@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, TrendingDown, Sparkles, Loader2, MessageSquare, RefreshCw, ShieldCheck, FileSearch, ServerCrash, Key } from 'lucide-react';
+import { TrendingUp, TrendingDown, Sparkles, Loader2, MessageSquare, RefreshCw, ShieldCheck, FileSearch, ServerCrash, Key, Printer } from 'lucide-react';
 import { Ledger } from '../types';
 import { GoogleGenAI } from "@google/genai";
 import MarkdownRenderer from './MarkdownRenderer';
+import { triggerPrint } from '../utils/exportUtils';
 
 const Reports: React.FC<{ store: any }> = ({ store }) => {
   const [activeReport, setActiveReport] = useState<'PL' | 'BS'>('PL');
@@ -13,6 +14,25 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
   const [needsKey, setNeedsKey] = useState(false);
   
   const { ledgers, company, vouchers, refreshData } = store;
+
+  const financialData = useMemo(() => {
+    const incomes = ledgers.filter((l: Ledger) => l.type === 'Income');
+    const expenses = ledgers.filter((l: Ledger) => l.type === 'Expense');
+    const assets = ledgers.filter((l: Ledger) => l.type === 'Asset');
+    const liabilities = ledgers.filter((l: Ledger) => l.type === 'Liability');
+    const equity = ledgers.filter((l: Ledger) => l.type === 'Equity');
+    
+    const totalIncome = incomes.reduce((sum: number, l: any) => sum + Math.abs(l.currentBalance), 0);
+    const totalExpense = expenses.reduce((sum: number, l: any) => sum + Math.abs(l.currentBalance), 0);
+    const totalAssets = assets.reduce((sum: number, l: any) => sum + l.currentBalance, 0);
+    const totalLiabilities = liabilities.reduce((sum: number, l: any) => sum + Math.abs(l.currentBalance), 0);
+    const totalEquity = equity.reduce((sum: number, l: any) => sum + Math.abs(l.currentBalance), 0);
+    
+    const netProfit = totalIncome - totalExpense;
+    const hasData = totalIncome > 0 || totalExpense > 0 || vouchers.length > 0;
+
+    return { incomes, expenses, assets, liabilities, equity, totalIncome, totalExpense, totalAssets, totalLiabilities, totalEquity, netProfit, hasData };
+  }, [ledgers, vouchers]);
 
   const checkKeyState = async () => {
     const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY);
@@ -28,21 +48,6 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
     handleAIAnalysis();
   };
 
-  const financialData = useMemo(() => {
-    const incomes = ledgers.filter((l: Ledger) => l.type === 'Income');
-    const expenses = ledgers.filter((l: Ledger) => l.type === 'Expense');
-    const assets = ledgers.filter((l: Ledger) => l.type === 'Asset');
-    const liabilities = ledgers.filter((l: Ledger) => l.type === 'Liability');
-    
-    const totalIncome = incomes.reduce((sum: number, l: any) => sum + Math.abs(l.currentBalance), 0);
-    const totalExpense = expenses.reduce((sum: number, l: any) => sum + Math.abs(l.currentBalance), 0);
-    const netProfit = totalIncome - totalExpense;
-
-    const hasData = totalIncome > 0 || totalExpense > 0 || vouchers.length > 0;
-
-    return { incomes, expenses, assets, liabilities, totalIncome, totalExpense, netProfit, hasData };
-  }, [ledgers, vouchers]);
-
   const handleAIAnalysis = async () => {
     if (!financialData.hasData) return;
     
@@ -55,7 +60,6 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
     setIsAnalyzing(true);
     setAiSummary(null);
     try {
-      // Fix: Creating new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Financial Summary for ${company.name}: REVENUE: ₹${financialData.totalIncome}, EXPENSE: ₹${financialData.totalExpense}, NET: ₹${financialData.netProfit}. Analysis needed.`;
       const response = await ai.models.generateContent({
@@ -77,25 +81,34 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center justify-between no-print">
+      {/* Formal Print Header */}
+      <div className="print-only mb-12 pb-10 border-b-2 border-slate-900">
+        <h1 className="text-4xl font-black uppercase tracking-tighter">{company.name}</h1>
+        <p className="text-sm font-bold text-slate-500 mt-2 uppercase tracking-[0.2em]">
+          {activeReport === 'PL' ? 'Statement of Profit and Loss' : 'Balance Sheet'}
+        </p>
+        <p className="text-xs font-black mt-2 text-slate-900 uppercase tracking-widest">
+          Accounting Period: {company.financialYear} • Generated: {new Date().toLocaleDateString()}
+        </p>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Financial Intelligence</h2>
           <p className="text-xs text-slate-500 font-medium uppercase tracking-widest mt-1">Live Reporting Node</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => refreshData()} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm">
-            <RefreshCw size={16} className={isReconciling ? 'animate-spin' : ''} /> Sync
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button onClick={() => triggerPrint()} className="flex-1 md:flex-none px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl flex items-center justify-center gap-2">
+            <Printer size={16} /> Print Report
           </button>
           <div className="flex bg-slate-200 p-1 rounded-2xl">
-            {/* Fix: Changed setActiveReport to activeReport for proper state comparison in className logic. */}
             <button onClick={() => setActiveReport('PL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeReport === 'PL' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>P & L</button>
-            {/* Fix: Changed setActiveReport to activeReport for proper state comparison in className logic. */}
             <button onClick={() => setActiveReport('BS')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${activeReport === 'BS' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500'}`}>Balance Sheet</button>
           </div>
         </div>
       </div>
 
-      <div className={`${needsKey ? 'bg-amber-50 border-amber-200' : aiSummary?.includes('ERROR') ? 'bg-rose-50 border-rose-200' : aiSummary ? 'bg-white shadow-xl' : 'bg-slate-50 border-dashed border-slate-200'} rounded-[2.5rem] p-10 border-2 transition-all min-h-[160px] flex flex-col justify-center`}>
+      <div className={`${needsKey ? 'bg-amber-50 border-amber-200' : aiSummary?.includes('ERROR') ? 'bg-rose-50 border-rose-200' : aiSummary ? 'bg-white shadow-xl' : 'bg-slate-50 border-dashed border-slate-200'} rounded-[2.5rem] p-10 border-2 transition-all min-h-[160px] flex flex-col justify-center no-print`}>
         {needsKey ? (
           <div className="flex items-center gap-8 text-amber-900">
              <div className="p-5 bg-amber-500 text-white rounded-[2rem] shadow-lg"><Key size={40} /></div>
@@ -134,14 +147,14 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
            <h3 className="text-3xl font-black text-slate-900 tracking-tight mb-4">Awaiting Transactions</h3>
            <p className="text-slate-500 italic max-w-md mx-auto font-medium">Record sales or purchases to generate intelligence.</p>
         </div>
-      ) : (
+      ) : activeReport === 'PL' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          <ReportSection title="Income" data={financialData.incomes} total={financialData.totalIncome} color="emerald" icon={<TrendingUp size={18} />} />
-          <ReportSection title="Expense" data={financialData.expenses} total={financialData.totalExpense} color="rose" icon={<TrendingDown size={18} />} />
+          <ReportSection title="Revenue / Incomes" data={financialData.incomes} total={financialData.totalIncome} color="emerald" icon={<TrendingUp size={18} />} />
+          <ReportSection title="Expenditure / Expenses" data={financialData.expenses} total={financialData.totalExpense} color="rose" icon={<TrendingDown size={18} />} />
           <div className="lg:col-span-2 bg-slate-900 p-12 rounded-[4rem] text-white shadow-2xl flex flex-col md:flex-row items-center justify-between">
                <div>
                  <p className="text-[11px] font-black text-slate-500 uppercase mb-4 tracking-[0.4em]">Financial Outcome</p>
-                 <h2 className="text-6xl font-black tracking-tighter">Profit / Loss</h2>
+                 <h2 className="text-6xl font-black tracking-tighter">Net {financialData.netProfit >= 0 ? 'Profit' : 'Loss'}</h2>
                </div>
                <div className="text-right">
                  <p className={`text-7xl font-black tracking-tighter ${financialData.netProfit >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
@@ -153,7 +166,42 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
                </div>
           </div>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <ReportSection title="Assets" data={financialData.assets} total={financialData.totalAssets} color="blue" icon={<TrendingUp size={18} />} />
+          <div className="space-y-10">
+            <ReportSection title="Liabilities" data={financialData.liabilities} total={financialData.totalLiabilities} color="rose" icon={<TrendingDown size={18} />} />
+            <ReportSection title="Equity & Capital" data={financialData.equity} total={financialData.totalEquity} color="amber" icon={<ShieldCheck size={18} />} />
+          </div>
+          <div className="lg:col-span-2 p-12 bg-white rounded-[4rem] border-4 border-slate-900 text-slate-900 flex flex-col md:flex-row items-center justify-between shadow-xl">
+               <div>
+                 <p className="text-[11px] font-black text-slate-400 uppercase mb-4 tracking-[0.4em]">Statement of Financial Position</p>
+                 <h2 className="text-6xl font-black tracking-tighter">Total Valuation</h2>
+               </div>
+               <div className="text-right">
+                 <p className="text-7xl font-black tracking-tighter text-slate-900">
+                    ₹{financialData.totalAssets.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                 </p>
+                 <div className="mt-4 flex items-center justify-end gap-2 text-[10px] font-black uppercase text-slate-400">
+                    <ShieldCheck size={14} className="text-blue-500" /> Standard Accounting Principles (SAP) Applied
+                 </div>
+               </div>
+          </div>
+        </div>
       )}
+
+      {/* Print Only Footer */}
+      <div className="print-only mt-32 grid grid-cols-3 gap-10">
+        <div className="pt-8 border-t border-slate-200 text-center">
+          <p className="text-[10px] font-black uppercase text-slate-400">Prepared By</p>
+        </div>
+        <div className="pt-8 border-t border-slate-200 text-center">
+          <p className="text-[10px] font-black uppercase text-slate-400">Verified By Audit</p>
+        </div>
+        <div className="pt-8 border-t-2 border-slate-900 text-center">
+          <p className="text-[10px] font-black uppercase text-slate-900">Chief Financial Officer</p>
+        </div>
+      </div>
     </div>
   );
 };
@@ -161,10 +209,12 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
 const ReportSection: React.FC<{ title: string, data: any[], total: number, color: string, icon: React.ReactNode }> = ({ title, data, total, color, icon }) => {
   const colorMap: Record<string, string> = {
     emerald: 'bg-emerald-50 text-emerald-800',
-    rose: 'bg-rose-50 text-rose-800'
+    rose: 'bg-rose-50 text-rose-800',
+    blue: 'bg-blue-50 text-blue-800',
+    amber: 'bg-amber-50 text-amber-800'
   };
   return (
-    <div className="bg-white rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm flex flex-col">
+    <div className="bg-white rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm flex flex-col print:border-2 print:border-slate-100">
       <div className={`px-10 py-8 border-b flex items-center justify-between ${colorMap[color]}`}>
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-2xl bg-white/50">{icon}</div>
@@ -172,16 +222,18 @@ const ReportSection: React.FC<{ title: string, data: any[], total: number, color
         </div>
       </div>
       <div className="p-10 flex-1 space-y-6">
-        {data.map(l => (
+        {data.length > 0 ? data.map(l => (
             <div key={l.id} className="flex justify-between items-center text-sm font-bold text-slate-600">
-              <span>{l.name}</span>
-              <span className="font-mono">₹{Math.abs(l.currentBalance).toLocaleString()}</span>
+              <span className="uppercase">{l.name}</span>
+              <span className="font-mono text-slate-900 font-black">₹{Math.abs(l.currentBalance).toLocaleString()}</span>
             </div>
-        ))}
+        )) : (
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest text-center py-4 italic">No ledger entries found</p>
+        )}
       </div>
       <div className="p-10 border-t-2 mt-auto bg-slate-50 flex justify-between items-center">
-        <span className="font-black text-slate-900 uppercase text-[10px] tracking-[0.3em]">Total</span>
-        <span className={`text-2xl font-black tracking-tighter ${color === 'emerald' ? 'text-emerald-600' : 'text-rose-600'}`}>
+        <span className="font-black text-slate-900 uppercase text-[10px] tracking-[0.3em]">Total {title}</span>
+        <span className={`text-2xl font-black tracking-tighter ${color === 'emerald' ? 'text-emerald-600' : color === 'rose' ? 'text-rose-600' : 'text-slate-900'}`}>
           ₹{total.toLocaleString()}
         </span>
       </div>

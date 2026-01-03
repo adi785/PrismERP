@@ -175,19 +175,109 @@ const ProductReturns: React.FC<{ store: any, onComplete: () => void }> = ({ stor
     }
   };
 
+  const ReturnPrintTemplate = () => (
+    <div className="print-only w-full max-w-4xl mx-auto p-12 bg-white border-2 border-slate-900 font-inter text-slate-900">
+      <div className="flex justify-between items-start mb-10 pb-8 border-b-2 border-slate-900">
+        <div>
+          <h1 className="text-3xl font-black uppercase tracking-tighter">{store.company.name}</h1>
+          <p className="text-xs font-bold text-slate-500 mt-2 uppercase">{store.company.address}</p>
+          <p className="text-xs font-black mt-2 uppercase tracking-widest">GSTIN: {store.company.gstin}</p>
+        </div>
+        <div className="text-right">
+          <div className="bg-slate-900 text-white px-8 py-2.5 text-sm font-black uppercase tracking-[0.3em] mb-4">
+            {returnType === 'Sales Return' ? 'Credit Note' : 'Debit Note'}
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black text-slate-400 uppercase">Document ID</p>
+            <p className="text-lg font-black font-mono">{docNo}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase mt-2">Dated</p>
+            <p className="text-sm font-black">{date}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Party Details:</h3>
+        <p className="text-base font-black uppercase">{party.name}</p>
+        <p className="text-xs font-bold text-slate-500 mt-1">Adjustment Reason: <span className="font-black text-slate-900 underline">{reason || 'Standard Returns'}</span></p>
+      </div>
+
+      <table className="w-full mb-10">
+        <thead>
+          <tr className="border-b-2 border-slate-900 text-[9px] font-black uppercase tracking-widest bg-slate-50">
+            <th className="py-4 px-4 text-left">Item Description</th>
+            <th className="py-4 text-center">HSN</th>
+            <th className="py-4 text-center">Qty</th>
+            <th className="py-4 text-right">Unit Rate</th>
+            <th className="py-4 text-right pr-4">Taxable Amt (₹)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((item, i) => (
+            <tr key={i}>
+              <td className="py-4 px-4">
+                <p className="text-sm font-black uppercase">{item.name}</p>
+                <p className="text-[9px] text-slate-400">SKU: {item.sku}</p>
+              </td>
+              <td className="py-4 text-center text-xs font-mono">{item.hsn}</td>
+              <td className="py-4 text-center text-sm font-bold">{item.quantity}</td>
+              <td className="py-4 text-right text-sm font-mono">₹{item.rate.toLocaleString()}</td>
+              <td className="py-4 text-right text-sm font-black pr-4">₹{item.taxableAmount.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t-2 border-slate-900 bg-slate-50">
+          <tr>
+            <td colSpan={3} className="py-8 px-6 align-top">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Adjusted Amount in Words</p>
+              <p className="text-xs font-black italic max-w-xs">{numberToWords(totals.total)}</p>
+            </td>
+            <td colSpan={2} className="py-8 px-8 text-right space-y-3">
+              <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+                <span>Taxable Total</span>
+                <span className="text-slate-900 font-mono text-sm">₹{totals.taxable.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
+                <span>GST Reversal</span>
+                <span className="text-slate-900 font-mono text-sm">₹{totals.gst.toLocaleString()}</span>
+              </div>
+              <div className="h-px bg-slate-200 my-4"></div>
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Net Adjusted Value</span>
+                <span className="text-4xl font-black tracking-tighter">₹{totals.total.toLocaleString()}</span>
+              </div>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div className="mt-24 grid grid-cols-2 gap-20">
+        <div className="text-center pt-8 border-t border-slate-200">
+          <p className="text-[10px] font-black uppercase text-slate-400">Prepared By</p>
+        </div>
+        <div className="text-center pt-8 border-t-2 border-slate-900">
+          <p className="text-[10px] font-black uppercase text-slate-900">Authorized Official</p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20">
       {isSaved ? (
         <div className="flex flex-col items-center py-20 animate-in zoom-in-95 duration-500">
-          <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-8 shadow-2xl">
-            <CheckCircle2 size={56} className="text-blue-600" />
+          <div className="no-print flex flex-col items-center">
+            <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-8 shadow-2xl">
+              <CheckCircle2 size={56} className="text-blue-600" />
+            </div>
+            <h2 className="text-4xl font-black text-slate-900 mb-2">{returnType} Recorded</h2>
+            <p className="text-slate-500 mb-12 font-bold uppercase tracking-widest text-xs">Inventory levels and balances synchronized.</p>
+            <div className="flex gap-4">
+              <button onClick={onComplete} className="px-10 py-5 rounded-[2rem] border border-slate-200 text-slate-600 font-black flex items-center gap-2 hover:bg-slate-50 transition-all"><ArrowLeft size={18} /> Daybook</button>
+              <button onClick={() => triggerPrint()} className="px-10 py-5 rounded-[2rem] bg-slate-900 text-white font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-2xl"><Printer size={20} /> Print Note</button>
+            </div>
           </div>
-          <h2 className="text-4xl font-black text-slate-900 mb-2">{returnType} Recorded</h2>
-          <p className="text-slate-500 mb-12 font-bold uppercase tracking-widest text-xs">Inventory levels and balances synchronized.</p>
-          <div className="flex gap-4">
-            <button onClick={onComplete} className="px-10 py-5 rounded-[2rem] border border-slate-200 text-slate-600 font-black flex items-center gap-2 hover:bg-slate-50 transition-all"><ArrowLeft size={18} /> Daybook</button>
-            <button onClick={() => triggerPrint()} className="px-10 py-5 rounded-[2rem] bg-slate-900 text-white font-black hover:bg-slate-800 transition-all flex items-center gap-3 shadow-2xl"><Printer size={20} /> Print Note</button>
-          </div>
+          <ReturnPrintTemplate />
         </div>
       ) : (
         <div className="no-print space-y-10">
@@ -371,6 +461,7 @@ const ProductReturns: React.FC<{ store: any, onComplete: () => void }> = ({ stor
           </div>
         </div>
       )}
+      <ReturnPrintTemplate />
     </div>
   );
 };

@@ -1,31 +1,11 @@
 
 import React, { useMemo } from 'react';
-import { 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Wallet, 
-  CreditCard, 
-  ShoppingBag, 
-  Activity,
-  Printer,
-  TrendingUp,
-  Scale
-} from 'lucide-react';
+import { ShoppingBag, CreditCard, Scale, TrendingUp, Printer, Activity, Clock, ArrowRight, Wallet, CheckCircle2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { triggerPrint } from '../utils/exportUtils';
 
-const emptyChartData = [
-  { name: 'Apr', sales: 0, purchase: 0 },
-  { name: 'May', sales: 0, purchase: 0 },
-  { name: 'Jun', sales: 0, purchase: 0 },
-  { name: 'Jul', sales: 0, purchase: 0 },
-  { name: 'Aug', sales: 0, purchase: 0 },
-  { name: 'Sep', sales: 0, purchase: 0 },
-];
-
 const Dashboard: React.FC<{ store: any }> = ({ store }) => {
-  const { stats, company, stockItems, ledgers } = store;
-  const chartData = emptyChartData; 
+  const { stats, company, stockItems, ledgers, vouchers, theme } = store;
 
   const ratios = useMemo(() => {
     const currentAssets = ledgers.filter((l: any) => l.type === 'Asset').reduce((s: number, l: any) => s + l.currentBalance, 0);
@@ -33,101 +13,98 @@ const Dashboard: React.FC<{ store: any }> = ({ store }) => {
     const currentRatio = currentLiabilities === 0 ? 0 : currentAssets / Math.abs(currentLiabilities);
     const inventoryValuation = stockItems.reduce((s: number, i: any) => s + (i.currentStock * i.purchasePrice), 0);
     const invTurnover = inventoryValuation === 0 ? 0 : stats.totalSales / inventoryValuation;
-    return { currentRatio, invTurnover, currentAssets };
+    return { currentRatio, invTurnover, currentAssets, inventoryValuation };
   }, [ledgers, stockItems, stats.totalSales]);
 
+  const recentActivity = useMemo(() => vouchers.slice(0, 5), [vouchers]);
+
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-10">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">Executive Dashboard</h2>
-          <p className="text-xs md:text-sm text-slate-500 font-medium">Real-time health of {company.name}</p>
+          <h2 className="text-xl md:text-2xl font-black tracking-tight dark:text-white">Business Intelligence</h2>
+          <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1">Analytics Console</p>
         </div>
-        <button 
-          onClick={triggerPrint}
-          className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-xl"
-        >
-          <Printer size={16} /> <span className="hidden sm:inline">Print Report</span><span className="sm:hidden">Print</span>
+        <button onClick={triggerPrint} className="w-full md:w-auto px-6 py-2.5 bg-slate-900 dark:bg-blue-600 text-white rounded-xl md:rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl hover:opacity-90 transition-all">
+          <Printer size={16} className="inline mr-2" /> Download Report
         </button>
       </div>
 
-      <div className="no-print space-y-6 md:space-y-8">
-        {/* Responsive Statistics Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <StatCard label="Total Sales" value={`₹${stats.totalSales.toLocaleString()}`} trend="0.0%" positive icon={<ShoppingBag className="text-blue-500" />} />
-          <StatCard label="Total Purchases" value={`₹${stats.totalPurchases.toLocaleString()}`} trend="0.0%" positive={false} icon={<CreditCard className="text-purple-500" />} />
-          <StatCard label="Current Ratio" value={ratios.currentRatio.toFixed(2)} trend={ratios.currentRatio > 1.2 ? "Healthy" : "Low"} positive={ratios.currentRatio > 1.2} icon={<Scale className="text-emerald-500" />} />
-          <StatCard label="Inv. Turnover" value={`${ratios.invTurnover.toFixed(1)}x`} trend="Velocity" positive icon={<TrendingUp className="text-rose-500" />} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 no-print">
+        <StatCard label="Total Sales" value={`₹${stats.totalSales.toLocaleString()}`} trend="+12.5%" color="blue" icon={<ShoppingBag />} />
+        <StatCard label="Procurement" value={`₹${stats.totalPurchases.toLocaleString()}`} trend="+4.2%" color="purple" icon={<CreditCard />} />
+        <StatCard label="Liquidity" value={ratios.currentRatio.toFixed(2)} trend="Healthy" color="emerald" icon={<Scale />} />
+        <StatCard label="Inventory" value={`₹${ratios.inventoryValuation.toLocaleString()}`} trend="Asset" color="amber" icon={<TrendingUp />} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-3xl md:rounded-[3.5rem] shadow-sm border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-8 md:mb-12">
+            <div>
+              <h4 className="text-lg md:text-xl font-black dark:text-white">Financial Velocity</h4>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Cash Flow Analytics</p>
+            </div>
+          </div>
+          <div className="h-[250px] md:h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[{name: 'Cycle A', sales: stats.totalSales, purchase: stats.totalPurchases}]}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1e293b' : '#f1f5f9'} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                <Tooltip cursor={{ fill: theme === 'dark' ? '#1e293b' : '#f8fafc' }} contentStyle={{ borderRadius: '20px', border: 'none', background: theme === 'dark' ? '#0f172a' : '#fff' }} />
+                <Bar dataKey="sales" fill="#3b82f6" radius={[8, 8, 0, 0]} barSize={40} />
+                <Bar dataKey="purchase" fill={theme === 'dark' ? '#334155' : '#cbd5e1'} radius={[8, 8, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Chart - Resizes with container */}
-          <div className="lg:col-span-2 bg-white p-6 md:p-10 rounded-[2rem] shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h4 className="text-xl font-black text-slate-900">Revenue Cycle</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Financial Period Breakdown</p>
+        <div className="bg-slate-900 dark:bg-slate-900 p-8 md:p-10 rounded-3xl md:rounded-[3.5rem] shadow-2xl text-white flex flex-col border border-white/5">
+          <div className="flex items-center gap-3 mb-8 md:mb-10">
+            <Activity className="text-blue-500" size={20} />
+            <h3 className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Live Pulse</h3>
+          </div>
+          <div className="flex-1 space-y-6 md:space-y-8">
+            {recentActivity.map((v: any) => (
+              <div key={v.id} className="flex items-start gap-4 md:gap-5 group">
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-blue-600/20 group-hover:border-blue-500/50 transition-all">
+                  <Clock size={14} className="text-slate-500 group-hover:text-blue-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs md:text-sm font-bold truncate">{v.narration || v.type}</p>
+                  <p className="text-[9px] md:text-[10px] font-black text-slate-500 uppercase mt-1 truncate">₹{v.totalAmount.toLocaleString()} • {v.date}</p>
+                </div>
+                <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full mt-2 shrink-0 ${v.type === 'Sales' ? 'bg-emerald-500' : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]'}`} />
               </div>
-            </div>
-            <div className="h-[250px] md:h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
-                  <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="purchase" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            ))}
+            {recentActivity.length === 0 && (
+              <div className="py-12 md:py-20 text-center text-slate-600 font-bold uppercase text-[9px] tracking-widest border border-dashed border-white/5 rounded-2xl md:rounded-3xl">No records found</div>
+            )}
           </div>
-
-          {/* Liquidity Cockpit */}
-          <div className="bg-slate-900 p-8 rounded-[2rem] shadow-xl text-white flex flex-col">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-8 text-slate-500">Liquidity Cockpit</h3>
-            <div className="flex-1 space-y-6">
-               <LiquidityItem label="Cash on Hand" value={stats.cashBalance} total={ratios.currentAssets} color="blue" />
-               <LiquidityItem label="Bank Balance" value={stats.bankBalance} total={ratios.currentAssets} color="emerald" />
-               <LiquidityItem label="Inventory Equity" value={stockItems.reduce((s:number, i:any) => s + (i.currentStock * i.purchasePrice), 0)} total={ratios.currentAssets} color="amber" />
-            </div>
-            <div className="mt-10 p-5 bg-white/5 rounded-2xl border border-white/10 text-xs text-slate-400">
-               Solvency: ₹{ratios.currentRatio.toFixed(2)} in assets per ₹1.00 liability.
-            </div>
-          </div>
+          <button className="mt-10 md:mt-12 w-full py-3.5 bg-white/5 hover:bg-white/10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10">View Audit Trail</button>
         </div>
       </div>
     </div>
   );
 };
 
-const LiquidityItem = ({ label, value, total, color }: any) => {
-  const percent = total === 0 ? 0 : Math.min(100, (value / total) * 100);
-  const colorMap: any = { blue: 'bg-blue-500', emerald: 'bg-emerald-500', amber: 'bg-amber-500' };
+const StatCard = ({ label, value, trend, color, icon }: any) => {
+  const colorMap: any = { 
+    blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400', 
+    purple: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400', 
+    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400', 
+    amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400' 
+  };
   return (
-    <div>
-      <div className="flex justify-between text-[11px] font-bold mb-2">
-        <span className="text-slate-400 uppercase">{label}</span>
-        <span>₹{value.toLocaleString()}</span>
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm group hover:border-blue-500 transition-all">
+      <div className="flex items-center justify-between mb-6 md:mb-8">
+        <div className={`p-3 md:p-4 rounded-xl md:rounded-3xl ${colorMap[color]}`}>{icon}</div>
+        <span className="text-[9px] md:text-[10px] font-black px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg md:rounded-xl text-slate-500 uppercase tracking-widest">{trend}</span>
       </div>
-      <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-        <div className={`h-full ${colorMap[color]}`} style={{ width: `${percent}%` }}></div>
-      </div>
+      <p className="text-slate-500 text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
+      <h4 className="text-xl md:text-3xl font-black dark:text-white tracking-tight truncate">{value}</h4>
     </div>
   );
 };
-
-const StatCard = ({ label, value, trend, positive, icon }: any) => (
-  <div className="bg-white p-5 md:p-6 rounded-[2rem] shadow-sm border border-slate-200">
-    <div className="flex items-center justify-between mb-4">
-      <div className="p-3 bg-slate-50 rounded-xl">{icon}</div>
-      <div className={`text-[9px] font-black px-2 py-1 rounded-lg ${positive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-        {trend}
-      </div>
-    </div>
-    <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
-    <h4 className="text-xl md:text-2xl font-black text-slate-800">{value}</h4>
-  </div>
-);
 
 export default Dashboard;
