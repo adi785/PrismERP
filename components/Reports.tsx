@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Sparkles, Loader2, MessageSquare, RefreshCw, ShieldCheck, FileSearch, ServerCrash, Key, Printer, Lock, Scale } from 'lucide-react';
 import { Ledger } from '../types';
@@ -17,7 +18,8 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
     const incomes = ledgers.filter((l: Ledger) => l.type === 'Income');
     const expenses = ledgers.filter((l: Ledger) => l.type === 'Expense');
     const assets = ledgers.filter((l: Ledger) => l.type === 'Asset');
-    const liabilities = liabilities = ledgers.filter((l: Ledger) => l.type === 'Liability');
+    // Fix: Corrected typo on line 20 to avoid "used before declaration" and "reassignment of constant" errors.
+    const liabilities = ledgers.filter((l: Ledger) => l.type === 'Liability');
     const equity = ledgers.filter((l: Ledger) => l.type === 'Equity');
     
     const totalIncome = incomes.reduce((sum: number, l: any) => sum + Math.abs(l.currentBalance), 0);

@@ -9,7 +9,6 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Ledger, direction: 'asc' | 'desc' } | null>(null);
-  // Fix: Added missing isModalOpen state to resolve reference error in "New Ledger" button.
   const [isModalOpen, setIsModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -120,10 +119,10 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/30">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input type="text" placeholder="Filter by name or group..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-6 py-3.5 bg-white dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm font-bold text-slate-900 dark:text-white transition-all shadow-inner" />
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/40 transition-colors">
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+            <input type="text" placeholder="Filter by name or group..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 text-xs md:text-sm font-bold text-slate-900 dark:text-white transition-all shadow-inner placeholder:text-slate-300 dark:placeholder:text-slate-600" />
           </div>
         </div>
         <div className="overflow-x-auto custom-scrollbar min-h-[400px]">

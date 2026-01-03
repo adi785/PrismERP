@@ -1,6 +1,7 @@
 
 export type AccountType = 'Asset' | 'Liability' | 'Equity' | 'Income' | 'Expense';
 export type UserRole = 'Admin' | 'Accountant' | 'Staff';
+export type TrackingType = 'none' | 'batch' | 'serial';
 
 export interface User {
   id: string;
@@ -18,6 +19,15 @@ export interface Ledger {
   currentBalance: number;
 }
 
+export interface TrackingDetail {
+  id: string;
+  itemId: string;
+  identifier: string; // Batch No or Serial No
+  expiryDate?: string;
+  currentQty: number;
+  type: 'batch' | 'serial';
+}
+
 export interface StockItem {
   id: string;
   name: string;
@@ -28,7 +38,8 @@ export interface StockItem {
   currentStock: number;
   purchasePrice: number;
   salePrice: number;
-  gstRate: number; // Percentage
+  gstRate: number;
+  trackingType: TrackingType;
 }
 
 export type VoucherType = 'Sales' | 'Purchase' | 'Payment' | 'Receipt' | 'Contra' | 'Journal';
@@ -41,6 +52,7 @@ export interface VoucherEntry {
 
 export interface InventoryMovement {
   itemId: string;
+  trackingId?: string; // Link to specific batch/serial
   quantity: number;
   rate: number;
   amount: number;
@@ -69,13 +81,6 @@ export interface Company {
 }
 
 export interface ERPData {
-  ledgers: Ledger[];
-  stockItems: StockItem[];
-  vouchers: Voucher[];
-}
-
-export interface ERPState {
-  company: Company;
   ledgers: Ledger[];
   stockItems: StockItem[];
   vouchers: Voucher[];
