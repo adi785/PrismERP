@@ -28,36 +28,30 @@
             animation: pulse-custom 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
-        /* ADVANCED PRINT ENGINE v2.0 */
+        /* ADVANCED PRINT ENGINE v3.0 (PDF Optimized) */
         @media print {
             @page {
                 size: A4;
-                margin: 12mm 15mm;
+                margin: 12mm;
             }
 
             html, body {
-                height: auto !important;
-                overflow: visible !important;
                 background: white !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 width: 100% !important;
                 color: #000 !important;
+                font-size: 11pt;
             }
 
             #root, 
             #root > div, 
             main, 
             .erp-main-content {
-                height: auto !important;
                 width: 100% !important;
-                overflow: visible !important;
-                display: block !important;
-                position: static !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 background: transparent !important;
-                box-shadow: none !important;
             }
 
             aside, 
@@ -69,11 +63,6 @@
             .recharts-responsive-container,
             .floating-assistant-trigger {
                 display: none !important;
-                visibility: hidden !important;
-                height: 0 !important;
-                width: 0 !important;
-                margin: 0 !important;
-                padding: 0 !important;
             }
 
             .print-only {
@@ -81,33 +70,38 @@
                 visibility: visible !important;
                 opacity: 1 !important;
                 width: 100% !important;
-                position: relative !important;
             }
 
+            /* Professional Table Pagination Logic */
             table {
                 width: 100% !important;
                 border-collapse: collapse !important;
                 page-break-inside: auto;
             }
-            tr {
-                page-break-inside: avoid;
-                page-break-after: auto;
-            }
-            thead {
-                display: table-header-group !important;
-            }
+            thead { display: table-header-group !important; }
+            tfoot { display: table-footer-group !important; }
             
+            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+            
+            /* Avoid splitting cards or summary sections */
+            .print-card {
+                page-break-inside: avoid !important;
+                border: 1px solid #e2e8f0 !important;
+                margin-bottom: 1rem !important;
+            }
+
+            /* Color Adjustments for Ink Economy & Sharpness */
             * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
-                color-adjust: exact !important;
             }
 
-            /* Formal Typography for Paper */
-            h1, h2, h3, h4 { color: #000 !important; }
-            .text-slate-500, .text-slate-400 { color: #666 !important; }
-            .bg-slate-50 { background-color: #f9fafb !important; }
-            .border-slate-900 { border-color: #000 !important; }
+            h1, h2, h3 { color: #000 !important; font-weight: 900 !important; }
+            .text-blue-600 { color: #1d4ed8 !important; }
+            .bg-slate-50 { background-color: #f9fafb !important; border: 1px solid #f1f5f9 !important; }
+            
+            /* Hide URL headers/footers browser inserts */
+            body { padding-top: 0 !important; }
         }
 
         .print-only {
@@ -123,15 +117,6 @@
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 10px;
-        }
-
-        /* Prose Overrides for UI components */
-        .prose {
-          max-width: none;
-        }
-        .prose p {
-          margin-top: 0.5em;
-          margin-bottom: 0.5em;
         }
     </style>
 <script type="importmap">

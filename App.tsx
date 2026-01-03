@@ -59,15 +59,12 @@ type View = 'dashboard' | 'ledgers' | 'stock' | 'vouchers' | 'daybook' | 'ai' | 
 interface ErrorBoundaryProps { children?: ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-// Fixed: Explicitly extending React.Component and declaring state property to resolve missing state/props property errors.
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Explicitly declare props and state properties to ensure the type is correctly recognized by the compiler in this environment.
   props: ErrorBoundaryProps;
   state: ErrorBoundaryState = { hasError: false, error: null };
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Fix: Manually assigning props to satisfy property existence checks if inheritance isn't correctly resolved by the tooling.
     this.props = props;
   }
 
@@ -101,7 +98,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-    // Fix: Explicitly returning children from props now that 'props' is declared on the class.
     return this.props.children;
   }
 }
@@ -147,7 +143,7 @@ const App: FC = () => {
     switch(currentView) {
       case 'dashboard': return <Dashboard store={store} />;
       case 'ledgers': return <LedgerList store={store} />;
-      case 'stock': return <Dashboard store={store} />; // Fallback if needed, though view logic remains same
+      case 'stock': return <StockList store={store} />;
       case 'stock-adjustment': return <StockAdjustment store={store} onComplete={() => setCurrentView('stock')} />;
       case 'vouchers': return <VoucherEntry store={store} onComplete={() => setCurrentView('daybook')} />;
       case 'daybook': return <DayBook store={store} />;
@@ -162,17 +158,11 @@ const App: FC = () => {
     }
   };
 
-  const finalRenderView = () => {
-    if (currentView === 'stock') return <StockList store={store} />;
-    return renderView();
-  };
-
   return (
     <ErrorBoundary>
       <div className="flex h-screen w-screen overflow-hidden bg-slate-100 dark:bg-slate-950 font-inter text-slate-900 dark:text-slate-100 transition-colors duration-300">
         {isCommandPaletteOpen && <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} setView={setCurrentView} store={store} />}
         
-        {/* Mobile Backdrop */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
         )}
@@ -196,7 +186,7 @@ const App: FC = () => {
             <NavGroup label="Operations">
               <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Sales Invoicing" />
               <NavItem active={currentView === 'purchases'} onClick={() => setCurrentView('purchases')} icon={<ShoppingCart size={18} />} label="Purchase Bills" />
-              <NavItem active={currentView === 'returns'} onClick={() => setCurrentView('returns')} icon={<RotateCcw size={18} />} label="Returns" />
+              <NavItem active={currentView === 'returns'} onClick={() => setCurrentView('returns'} icon={<RotateCcw size={18} />} label="Returns" />
             </NavGroup>
             <NavGroup label="Compliance">
               <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" />
@@ -281,7 +271,7 @@ const App: FC = () => {
           </header>
 
           <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar erp-main-content">
-            {finalRenderView()}
+            {renderView()}
           </div>
           <FloatingAssistant store={store} />
         </main>
@@ -292,7 +282,7 @@ const App: FC = () => {
 
 const NavGroup = ({ label, children }: { label: string, children?: ReactNode }) => (
   <div className="mb-4">
-    <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">{label}</p>
+    <p className="px-2 pb-2 text-[10px] font-bold text-slate-600 dark:text-slate-500 uppercase tracking-widest">{label}</p>
     <div className="space-y-1">{children}</div>
   </div>
 );
