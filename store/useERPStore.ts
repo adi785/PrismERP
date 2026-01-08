@@ -54,16 +54,6 @@ export const useERPStore = () => {
   useEffect(() => { refreshData(); }, [refreshData]);
 
   const recordVoucher = useCallback(async (voucherData: Omit<Voucher, 'id'>) => {
-    // Inward tracking logic: ensure records exist for batches/serials
-    if (voucherData.type === 'Purchase' && voucherData.inventory) {
-      for (let i = 0; i < voucherData.inventory.length; i++) {
-        const mov = voucherData.inventory[i];
-        const item = stockItems.find(s => s.id === mov.itemId);
-        // This is a placeholder for actual batch/serial object passed from the UI
-        // In reality, the UI will pass the identifier in a temporary field
-      }
-    }
-
     const saved = await api.recordVoucher(voucherData);
     setVouchers(prev => [saved, ...prev]);
     const [s, l, st] = await Promise.all([api.getStockItems(), api.getLedgers(), api.getStats()]);
@@ -72,7 +62,18 @@ export const useERPStore = () => {
     setStats(st);
     const t = await api.getTrackingForItems(s.map(i => i.id));
     setTrackingData(t);
-  }, [stockItems]);
+  }, []);
+
+  const deleteVoucher = useCallback(async (id: string) => {
+    await api.deleteVoucher(id);
+    setVouchers(prev => prev.filter(v => v.id !== id));
+    const [s, l, st] = await Promise.all([api.getStockItems(), api.getLedgers(), api.getStats()]);
+    setStockItems(s);
+    setLedgers(l);
+    setStats(st);
+    const t = await api.getTrackingForItems(s.map(i => i.id));
+    setTrackingData(t);
+  }, []);
 
   return {
     user, companies, company, ledgers, stockItems, vouchers, trackingData, stats, loading, isSyncing, theme, toggleTheme,
@@ -86,6 +87,7 @@ export const useERPStore = () => {
     updateStockItem: async (id: string, u: any) => { const s = await api.updateStockItem(id, u); setStockItems(prev => prev.map(item => item.id === id ? s : item)); },
     deleteStockItem: async (id: string) => { await api.deleteStockItem(id); setStockItems(prev => prev.filter(item => item.id !== id)); },
     addVoucher: recordVoucher,
+    deleteVoucher,
     ensureTrackingRecord: api.ensureTrackingRecord,
     refreshData
   };

@@ -18,7 +18,7 @@ class BackendAPI {
   }
 
   private handleError(error: any) {
-    console.error("API Error Trace:", error);
+    console.error("ERP Core Error:", error);
     throw error;
   }
 
@@ -93,7 +93,7 @@ class BackendAPI {
   async getLedgers(): Promise<Ledger[]> {
     const cid = localStorage.getItem('prism_erp_company_id');
     if (!cid) return [];
-    const { data, error } = await supabase!.from('ledgers').select('*').eq('company_id', cid);
+    const { data, error } = await supabase!.from('ledgers').select('*').eq('company_id', cid).order('name');
     if (error) this.handleError(error);
     return (data || []).map(l => this.mapLedger(l));
   }
@@ -108,7 +108,7 @@ class BackendAPI {
   async getStockItems(): Promise<StockItem[]> {
     const cid = localStorage.getItem('prism_erp_company_id');
     if (!cid) return [];
-    const { data, error } = await supabase!.from('stock_items').select('*').eq('company_id', cid);
+    const { data, error } = await supabase!.from('stock_items').select('*').eq('company_id', cid).order('name');
     if (error) this.handleError(error);
     return (data || []).map(i => this.mapStockItem(i));
   }
@@ -161,7 +161,7 @@ class BackendAPI {
   async getVouchers(): Promise<Voucher[]> {
     const cid = localStorage.getItem('prism_erp_company_id');
     if (!cid) return [];
-    const { data, error } = await supabase!.from('vouchers').select('*, voucher_entries(*), inventory_movements(*)').eq('company_id', cid).order('date', { ascending: false });
+    const { data, error } = await supabase!.from('vouchers').select('*, voucher_entries(*), inventory_movements(*)').eq('company_id', cid).order('date', { ascending: false }).order('created_at', { ascending: false });
     if (error) this.handleError(error);
     return (data || []).map(v => this.mapVoucher(v));
   }
@@ -176,13 +176,6 @@ class BackendAPI {
 
     if (voucher.inventory) {
       for (const m of voucher.inventory) {
-        let finalTrackingId = m.trackingId;
-        
-        // Handle new tracking records if they don't exist yet (Batch/Serial on Purchase)
-        if (!m.trackingId && (m.type === 'In')) {
-           // This logic usually happens in the store or specialized method
-        }
-
         await supabase!.from('inventory_movements').insert([{
           voucher_id: vData.id,
           item_id: m.itemId,
@@ -193,15 +186,22 @@ class BackendAPI {
           type: m.type
         }]);
 
-        // Update tracking quantity if applicable
+        // Sync Stock Levels
+        const delta = m.type === 'In' ? m.quantity : -m.quantity;
+        
+        // 1. Update master item qty
+        const { data: item } = await supabase!.from('stock_items').select('current_stock').eq('id', m.itemId).single();
+        await supabase!.from('stock_items').update({ current_stock: Number(item.current_stock) + delta }).eq('id', m.itemId);
+
+        // 2. Update tracking qty if applicable
         if (m.trackingId) {
           const { data: track } = await supabase!.from('stock_tracking').select('current_qty').eq('id', m.trackingId).single();
-          const delta = m.type === 'In' ? m.quantity : -m.quantity;
           await supabase!.from('stock_tracking').update({ current_qty: Number(track.current_qty) + delta }).eq('id', m.trackingId);
         }
       }
     }
     
+    // Sync Ledger Balances
     for (const e of voucher.entries) {
       const { data: l } = await supabase!.from('ledgers').select('*').eq('id', e.ledgerId).single();
       if (l) {
@@ -211,6 +211,51 @@ class BackendAPI {
       }
     }
     return { ...voucher, id: vData.id };
+  }
+
+  async deleteVoucher(voucherId: string): Promise<void> {
+    if (this.useLocalStorageFallback) throw new Error("Local deletion restricted for safety");
+    
+    // 1. Fetch full voucher details to perform reversal
+    const { data: v, error: vErr } = await supabase!.from('vouchers').select('*, voucher_entries(*), inventory_movements(*)').eq('id', voucherId).single();
+    if (vErr) this.handleError(vErr);
+
+    // 2. Reverse Ledger Balances
+    if (v.voucher_entries) {
+      for (const e of v.voucher_entries) {
+        const { data: l } = await supabase!.from('ledgers').select('*').eq('id', e.ledger_id).single();
+        if (l) {
+          let diff = Number(e.debit) - Number(e.credit);
+          if (['Liability', 'Income', 'Equity'].includes(l.type)) diff = Number(e.credit) - Number(e.debit);
+          await supabase!.from('ledgers').update({ current_balance: Number(l.current_balance) - diff }).eq('id', l.id);
+        }
+      }
+    }
+
+    // 3. Reverse Inventory Movements & Tracking
+    if (v.inventory_movements) {
+      for (const m of v.inventory_movements) {
+        const delta = m.type === 'In' ? m.quantity : -m.quantity;
+        
+        // Reverse Master Stock
+        const { data: item } = await supabase!.from('stock_items').select('current_stock').eq('id', m.item_id).single();
+        if (item) {
+          await supabase!.from('stock_items').update({ current_stock: Number(item.current_stock) - delta }).eq('id', m.item_id);
+        }
+
+        // Reverse Tracking
+        if (m.tracking_id) {
+          const { data: track } = await supabase!.from('stock_tracking').select('current_qty').eq('id', m.tracking_id).single();
+          if (track) {
+            await supabase!.from('stock_tracking').update({ current_qty: Number(track.current_qty) - delta }).eq('id', m.tracking_id);
+          }
+        }
+      }
+    }
+
+    // 4. Finally delete the voucher record (Cascade handles child tables)
+    const { error: dErr } = await supabase!.from('vouchers').delete().eq('id', voucherId);
+    if (dErr) this.handleError(dErr);
   }
 
   async ensureTrackingRecord(itemId: string, identifier: string, type: 'batch' | 'serial', expiry?: string): Promise<string> {

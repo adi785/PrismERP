@@ -259,7 +259,7 @@ const App: FC = () => {
                 <ChevronDown size={14} className="text-slate-400 ml-1" />
               </div>
 
-              <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center p-2 md:px-4 md:py-2 bg-slate-50 dark:bg-slate-950/40 hover:bg-white dark:hover:bg-slate-800 text-slate-400 rounded-xl text-sm transition-all group border border-slate-200 dark:border-slate-800 max-w-xs flex-1 shadow-inner">
+              <button onClick={() => setIsCommandPaletteOpen(true)} className="flex items-center p-2 md:px-4 md:py-2 bg-slate-50 dark:bg-slate-950/40 hover:bg-white dark:hover:bg-slate-800 text-slate-400 rounded-xl text-sm transition-all group border border-slate-200 dark:border-slate-800 max-w-xs flex-1 shadow-inner ring-1 ring-slate-200 dark:ring-slate-800">
                 <Search size={18} className="group-hover:text-blue-500 shrink-0 transition-colors" />
                 <span className="hidden md:inline font-bold ml-2 mr-6 truncate text-slate-400 dark:text-slate-500">Search (⌘K)</span>
               </button>

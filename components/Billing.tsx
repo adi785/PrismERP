@@ -4,8 +4,9 @@ import { Plus, Trash2, Printer, Save, CheckCircle2, Package, User, Calculator, S
 import { StockItem, Ledger, TrackingDetail, InventoryMovement } from '../types';
 import { triggerPrint, numberToWords } from '../utils/exportUtils';
 
+// Added missing 'unit' property to BillingItem interface to fix the reported error.
 interface BillingItem {
-  id: string; itemId: string; name: string; sku: string; hsn: string; quantity: number; rate: number; discountType: 'percentage' | 'fixed'; discountValue: number; discountAmount: number; cgstRate: number; sgstRate: number; igstRate: number; cgstAmount: number; sgstAmount: number; igstAmount: number; amount: number; totalWithTax: number; availableStock: number;
+  id: string; itemId: string; name: string; sku: string; hsn: string; quantity: number; rate: number; discountType: 'percentage' | 'fixed'; discountValue: number; discountAmount: number; cgstRate: number; sgstRate: number; igstRate: number; cgstAmount: number; sgstAmount: number; igstAmount: number; amount: number; totalWithTax: number; availableStock: number; unit: string;
   trackingType: 'none' | 'batch' | 'serial';
   assignedTracking: string[]; // List of tracking IDs
 }
@@ -55,12 +56,14 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
     return { taxable, gstTotal: consolidatedGst, total: finalPayable, roundOff, hasDeficit, trackingPending };
   }, [items, taxType]);
 
+  // Initializing new line items with default 'unit' value.
   const addItem = () => {
-    const newItem: BillingItem = { id: Date.now().toString(), itemId: '', name: '', sku: '', hsn: '', quantity: 1, rate: 0, discountType: 'percentage', discountValue: 0, discountAmount: 0, cgstRate: 9, sgstRate: 9, igstRate: 18, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, amount: 0, totalWithTax: 0, availableStock: 0, trackingType: 'none', assignedTracking: [] };
+    const newItem: BillingItem = { id: Date.now().toString(), itemId: '', name: '', sku: '', hsn: '', quantity: 1, rate: 0, discountType: 'percentage', discountValue: 0, discountAmount: 0, cgstRate: 9, sgstRate: 9, igstRate: 18, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, amount: 0, totalWithTax: 0, availableStock: 0, trackingType: 'none', assignedTracking: [], unit: 'Nos' };
     setItems([...items, calculateLineItem(newItem, taxType)]);
     setTimeout(() => setActiveSearchId(newItem.id), 50);
   };
 
+  // Populating 'unit' from StockItem to ensure consistency during item selection.
   const updateItem = (id: string, updates: Partial<BillingItem>) => {
     setItems(items.map(item => {
       if (item.id === id) {
@@ -68,7 +71,7 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
         if (updates.itemId) {
           const s = store.stockItems.find((stock: StockItem) => stock.id === updates.itemId);
           if (s) {
-            updated.name = s.name; updated.sku = s.sku; updated.hsn = s.hsn || ''; updated.rate = s.salePrice; updated.cgstRate = s.gstRate / 2; updated.sgstRate = s.gstRate / 2; updated.igstRate = s.gstRate; updated.availableStock = s.currentStock; updated.trackingType = s.trackingType; updated.assignedTracking = [];
+            updated.name = s.name; updated.sku = s.sku; updated.hsn = s.hsn || ''; updated.rate = s.salePrice; updated.cgstRate = s.gstRate / 2; updated.sgstRate = s.gstRate / 2; updated.igstRate = s.gstRate; updated.availableStock = s.currentStock; updated.trackingType = s.trackingType; updated.assignedTracking = []; updated.unit = s.unit;
           }
         }
         return calculateLineItem(updated, taxType);

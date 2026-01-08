@@ -65,7 +65,7 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <button onClick={() => setSelectedLedgerId(null)} className="p-2.5 md:p-3 bg-white dark:bg-slate-800 rounded-xl md:rounded-2xl text-slate-500 border border-slate-200 dark:border-slate-700 no-print hover:bg-slate-50 dark:hover:bg-slate-700 w-fit transition-all"><ArrowLeft size={20} /></button>
           <div className="flex-1">
-            <h2 className="text-xl md:text-2xl font-black dark:text-white text-slate-900">{selectedLedger.name}</h2>
+            <h2 className="text-xl md:text-2xl font-black dark:text-white text-slate-900 leading-tight">{selectedLedger.name}</h2>
             <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{selectedLedger.group} • {selectedLedger.type}</p>
           </div>
           <div className="flex gap-2 no-print">
@@ -78,7 +78,7 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left min-w-[700px]">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-200 dark:border-slate-800">
+                <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-200 dark:border-slate-800">
                   <th className="px-6 md:px-8 py-4 md:py-5">Date</th>
                   <th className="px-4 md:px-6 py-4 md:py-5">Particulars</th>
                   <th className="px-4 md:px-6 py-4 md:py-5 text-right">Debit (₹)</th>
@@ -118,11 +118,17 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/40 transition-colors">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 transition-colors">
           <div className="relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-            <input type="text" placeholder="Filter by name or group..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 text-xs md:text-sm font-bold text-slate-900 dark:text-white transition-all shadow-inner placeholder:text-slate-300 dark:placeholder:text-slate-600" />
+            <input 
+              type="text" 
+              placeholder="Filter by nomenclature or account group..." 
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)} 
+              className="w-full pl-12 pr-6 py-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 text-xs md:text-sm font-bold text-slate-900 dark:text-white transition-all shadow-inner placeholder:text-slate-300 dark:placeholder:text-slate-600" 
+            />
           </div>
         </div>
         <div className="overflow-x-auto custom-scrollbar min-h-[400px]">
