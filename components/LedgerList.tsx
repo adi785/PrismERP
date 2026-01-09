@@ -8,7 +8,8 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Ledger, direction: 'asc' | 'desc' } | null>(null);
+  // Default sort by 'group' ascending to organize ledgers by type initially
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Ledger, direction: 'asc' | 'desc' } | null>({ key: 'group', direction: 'asc' });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -26,6 +27,14 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
     setSortConfig({ key, direction });
   };
 
+  const handleCreateLedger = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.group) return;
+    await store.addLedger(formData);
+    setIsModalOpen(false);
+    setFormData({ name: '', group: '', type: 'Asset', openingBalance: 0 });
+  };
+
   const filteredLedgers = useMemo(() => {
     let items = store.ledgers.filter((l: Ledger) => 
       l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -33,8 +42,15 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
     );
     if (sortConfig) {
       items = [...items].sort((a: any, b: any) => {
+        // Primary sort
         if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
         if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+        
+        // Secondary stable sort by Name for better readability within groups
+        if (sortConfig.key !== 'name') {
+           if (a.name.toLowerCase() < b.name.toLowerCase()) return -1;
+           if (a.name.toLowerCase() > b.name.toLowerCase()) return 1;
+        }
         return 0;
       });
     }
@@ -105,7 +121,7 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white">Chart of Accounts</h2>
@@ -156,6 +172,32 @@ const LedgerList: React.FC<{ store: any }> = ({ store }) => {
           </table>
         </div>
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-white/20 animate-in zoom-in-95 duration-300">
+            <div className="p-10 bg-slate-900 text-white flex justify-between items-center">
+              <div><h2 className="text-3xl font-black tracking-tight">New Ledger</h2><p className="text-slate-400 mt-1 text-sm">Create account head</p></div>
+              <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-white/10 rounded-full transition-all"><X size={24}/></button>
+            </div>
+            <form onSubmit={handleCreateLedger} className="p-10 space-y-8">
+              <div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Account Name</label><input required className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black focus:ring-4 focus:ring-blue-500/10 outline-none transition-all" placeholder="e.g. HDFC Bank" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div>
+              <div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Group</label><input required className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black focus:ring-4 focus:ring-blue-500/10 outline-none transition-all" placeholder="e.g. Bank Accounts" value={formData.group} onChange={e => setFormData({...formData, group: e.target.value})}/></div>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Account Class</label>
+                <select className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black appearance-none outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as AccountType})}>
+                  <option value="Asset">Asset</option>
+                  <option value="Liability">Liability</option>
+                  <option value="Income">Income</option>
+                  <option value="Expense">Expense</option>
+                  <option value="Equity">Equity</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/20 hover:bg-blue-700 transition-all">Create Ledger</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

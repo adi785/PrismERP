@@ -22,6 +22,18 @@ class BackendAPI {
     throw error;
   }
 
+  // Helper to simulate DB delay and retrieval
+  private async getFromLocal<T>(key: string): Promise<T[]> {
+    await new Promise(r => setTimeout(r, 100)); // Sim delay
+    const data = localStorage.getItem(`prism_local_${key}`);
+    return data ? JSON.parse(data) : [];
+  }
+
+  private async saveToLocal(key: string, data: any[]) {
+    await new Promise(r => setTimeout(r, 100));
+    localStorage.setItem(`prism_local_${key}`, JSON.stringify(data));
+  }
+
   // --- Auth Methods ---
   async login(email: string, password: string): Promise<User> {
     if (this.useLocalStorageFallback) {
@@ -91,6 +103,10 @@ class BackendAPI {
 
   // --- ERP Data Methods ---
   async getLedgers(): Promise<Ledger[]> {
+    if (this.useLocalStorageFallback) {
+      const local = await this.getFromLocal<Ledger>('ledgers');
+      return local.length > 0 ? local : INITIAL_LEDGERS; // Return initial if empty
+    }
     const cid = localStorage.getItem('prism_erp_company_id');
     if (!cid) return [];
     const { data, error } = await supabase!.from('ledgers').select('*').eq('company_id', cid).order('name');
@@ -99,6 +115,13 @@ class BackendAPI {
   }
 
   async addLedger(ledger: Omit<Ledger, 'id' | 'currentBalance'>): Promise<Ledger> {
+    if (this.useLocalStorageFallback) {
+      const ledgers = await this.getLedgers();
+      const newLedger: Ledger = { ...ledger, id: `local-l-${Date.now()}`, currentBalance: ledger.openingBalance };
+      ledgers.push(newLedger);
+      await this.saveToLocal('ledgers', ledgers);
+      return newLedger;
+    }
     const cid = localStorage.getItem('prism_erp_company_id');
     const { data, error } = await supabase!.from('ledgers').insert([{ company_id: cid, name: ledger.name, group: ledger.group, type: ledger.type, opening_balance: ledger.openingBalance, current_balance: ledger.openingBalance }]).select().single();
     if (error) this.handleError(error);
@@ -106,6 +129,9 @@ class BackendAPI {
   }
 
   async getStockItems(): Promise<StockItem[]> {
+    if (this.useLocalStorageFallback) {
+      return await this.getFromLocal<StockItem>('stock_items');
+    }
     const cid = localStorage.getItem('prism_erp_company_id');
     if (!cid) return [];
     const { data, error } = await supabase!.from('stock_items').select('*').eq('company_id', cid).order('name');
@@ -114,6 +140,10 @@ class BackendAPI {
   }
 
   async getTrackingForItems(itemIds: string[]): Promise<TrackingDetail[]> {
+    if (this.useLocalStorageFallback) {
+       const all = await this.getFromLocal<TrackingDetail>('tracking');
+       return all.filter(t => itemIds.includes(t.itemId) && t.currentQty > 0);
+    }
     if (itemIds.length === 0) return [];
     const { data, error } = await supabase!.from('stock_tracking').select('*').in('item_id', itemIds).gt('current_qty', 0);
     if (error) this.handleError(error);
@@ -128,6 +158,13 @@ class BackendAPI {
   }
 
   async addStockItem(item: Omit<StockItem, 'id' | 'currentStock'>): Promise<StockItem> {
+    if (this.useLocalStorageFallback) {
+      const items = await this.getStockItems();
+      const newItem: StockItem = { ...item, id: `local-i-${Date.now()}`, currentStock: item.openingStock };
+      items.push(newItem);
+      await this.saveToLocal('stock_items', items);
+      return newItem;
+    }
     const cid = localStorage.getItem('prism_erp_company_id');
     const { data, error } = await supabase!.from('stock_items').insert([{
       company_id: cid,
@@ -147,6 +184,16 @@ class BackendAPI {
   }
 
   async updateStockItem(id: string, updates: Partial<StockItem>): Promise<StockItem> {
+    if (this.useLocalStorageFallback) {
+      const items = await this.getStockItems();
+      const idx = items.findIndex(i => i.id === id);
+      if (idx !== -1) {
+        items[idx] = { ...items[idx], ...updates };
+        await this.saveToLocal('stock_items', items);
+        return items[idx];
+      }
+      throw new Error("Item not found");
+    }
     const mapped = this.mapToStockTable(updates);
     const { data, error } = await supabase!.from('stock_items').update(mapped).eq('id', id).select().single();
     if (error) this.handleError(error);
@@ -154,11 +201,20 @@ class BackendAPI {
   }
 
   async deleteStockItem(id: string): Promise<void> {
+    if (this.useLocalStorageFallback) {
+      const items = await this.getStockItems();
+      await this.saveToLocal('stock_items', items.filter(i => i.id !== id));
+      return;
+    }
     const { error } = await supabase!.from('stock_items').delete().eq('id', id);
     if (error) this.handleError(error);
   }
 
   async getVouchers(): Promise<Voucher[]> {
+    if (this.useLocalStorageFallback) {
+      const v = await this.getFromLocal<Voucher>('vouchers');
+      return v.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
     const cid = localStorage.getItem('prism_erp_company_id');
     if (!cid) return [];
     const { data, error } = await supabase!.from('vouchers').select('*, voucher_entries(*), inventory_movements(*)').eq('company_id', cid).order('date', { ascending: false }).order('created_at', { ascending: false });
@@ -167,6 +223,45 @@ class BackendAPI {
   }
 
   async recordVoucher(voucher: Omit<Voucher, 'id'>): Promise<Voucher> {
+    if (this.useLocalStorageFallback) {
+      const newVoucher: Voucher = { ...voucher, id: `local-v-${Date.now()}` };
+      const vouchers = await this.getVouchers();
+      vouchers.unshift(newVoucher);
+      await this.saveToLocal('vouchers', vouchers);
+
+      // 1. Update Ledger Balances Locally
+      const ledgers = await this.getLedgers();
+      for (const e of voucher.entries) {
+        const l = ledgers.find(ledger => ledger.id === e.ledgerId);
+        if (l) {
+          let diff = Number(e.debit) - Number(e.credit);
+          if (['Liability', 'Income', 'Equity'].includes(l.type)) diff = Number(e.credit) - Number(e.debit);
+          l.currentBalance += diff;
+        }
+      }
+      await this.saveToLocal('ledgers', ledgers);
+
+      // 2. Update Stock & Tracking Locally
+      if (voucher.inventory && voucher.inventory.length > 0) {
+        const stockItems = await this.getStockItems();
+        const trackingData = await this.getFromLocal<TrackingDetail>('tracking');
+
+        for (const m of voucher.inventory) {
+          const delta = m.type === 'In' ? m.quantity : -m.quantity;
+          const item = stockItems.find(i => i.id === m.itemId);
+          if (item) item.currentStock += delta;
+
+          if (m.trackingId) {
+             const track = trackingData.find(t => t.id === m.trackingId);
+             if (track) track.currentQty += delta;
+          }
+        }
+        await this.saveToLocal('stock_items', stockItems);
+        await this.saveToLocal('tracking', trackingData);
+      }
+      return newVoucher;
+    }
+
     const cid = localStorage.getItem('prism_erp_company_id');
     const { data: vData, error: vError } = await supabase!.from('vouchers').insert([{ company_id: cid, number: voucher.number, date: voucher.date, type: voucher.type, narration: voucher.narration, total_amount: voucher.totalAmount, gst_total: voucher.gstTotal }]).select().single();
     if (vError) this.handleError(vError);
@@ -214,7 +309,43 @@ class BackendAPI {
   }
 
   async deleteVoucher(voucherId: string): Promise<void> {
-    if (this.useLocalStorageFallback) throw new Error("Local deletion restricted for safety");
+    if (this.useLocalStorageFallback) {
+      const vouchers = await this.getVouchers();
+      const v = vouchers.find(v => v.id === voucherId);
+      if (!v) return;
+
+      // Reverse Effects Local
+      const ledgers = await this.getLedgers();
+      for (const e of v.entries) {
+        const l = ledgers.find(ledger => ledger.id === e.ledgerId);
+        if (l) {
+          let diff = Number(e.debit) - Number(e.credit);
+          if (['Liability', 'Income', 'Equity'].includes(l.type)) diff = Number(e.credit) - Number(e.debit);
+          l.currentBalance -= diff; // Reverse
+        }
+      }
+      await this.saveToLocal('ledgers', ledgers);
+
+      if (v.inventory) {
+        const stockItems = await this.getStockItems();
+        const trackingData = await this.getFromLocal<TrackingDetail>('tracking');
+        for (const m of v.inventory) {
+          const delta = m.type === 'In' ? m.quantity : -m.quantity;
+          const item = stockItems.find(i => i.id === m.itemId);
+          if (item) item.currentStock -= delta; // Reverse
+          if (m.trackingId) {
+             const track = trackingData.find(t => t.id === m.trackingId);
+             if (track) track.currentQty -= delta; // Reverse
+          }
+        }
+        await this.saveToLocal('stock_items', stockItems);
+        await this.saveToLocal('tracking', trackingData);
+      }
+
+      const newVouchers = vouchers.filter(x => x.id !== voucherId);
+      await this.saveToLocal('vouchers', newVouchers);
+      return;
+    }
     
     // 1. Fetch full voucher details to perform reversal
     const { data: v, error: vErr } = await supabase!.from('vouchers').select('*, voucher_entries(*), inventory_movements(*)').eq('id', voucherId).single();
@@ -259,6 +390,15 @@ class BackendAPI {
   }
 
   async ensureTrackingRecord(itemId: string, identifier: string, type: 'batch' | 'serial', expiry?: string): Promise<string> {
+    if (this.useLocalStorageFallback) {
+      const all = await this.getFromLocal<TrackingDetail>('tracking');
+      const exist = all.find(t => t.itemId === itemId && t.identifier === identifier);
+      if (exist) return exist.id;
+      const newT: TrackingDetail = { id: `local-t-${Date.now()}-${Math.random()}`, itemId, identifier, type, expiryDate: expiry, currentQty: 0 };
+      all.push(newT);
+      await this.saveToLocal('tracking', all);
+      return newT.id;
+    }
     const { data: existing } = await supabase!.from('stock_tracking').select('id').eq('item_id', itemId).eq('identifier', identifier).maybeSingle();
     if (existing) return existing.id;
     const { data, error } = await supabase!.from('stock_tracking').insert([{ item_id: itemId, identifier, tracking_type: type, expiry_date: expiry, current_qty: 0 }]).select().single();
