@@ -1,7 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-// Added AlertTriangle to the imports from lucide-react to resolve the reference error.
-import { Save, Plus, X, Calculator, ShoppingCart, ArrowLeftRight, CheckCircle2, Printer, ArrowLeft, ChevronDown, Trash2, Receipt, CreditCard, Wallet, FileText, Landmark, Scale, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Save, Plus, X, Calculator, ShoppingCart, ArrowLeftRight, CheckCircle2, Printer, ArrowLeft, ChevronDown, Trash2, Receipt, CreditCard, Wallet, FileText, Landmark, Scale, AlertTriangle, Search } from 'lucide-react';
 import { VoucherType, VoucherEntry as Entry, InventoryMovement } from '../types';
 import { triggerPrint } from '../utils/exportUtils';
 
@@ -15,7 +14,7 @@ const VOUCHER_METADATA: Record<VoucherType, { color: string, icon: React.ReactNo
 };
 
 const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store, onComplete }) => {
-  const [type, setType] = useState<VoucherType>('Journal');
+  const [type, setType] = useState<VoucherType>('Sales');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [number, setNumber] = useState(`VCH-${Math.floor(1000 + Math.random() * 9000)}`);
   const [entries, setEntries] = useState<Entry[]>([
@@ -25,11 +24,27 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
   const [narration, setNarration] = useState('');
   const [isSaved, setIsSaved] = useState(false);
 
+  // Searchable Dropdown State
+  const [activeSearchIdx, setActiveSearchIdx] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const totalDebit = entries.reduce((sum, e) => sum + Number(e.debit), 0);
   const totalCredit = entries.reduce((sum, e) => sum + Number(e.credit), 0);
   const diff = Number((totalDebit - totalCredit).toFixed(2));
   
-  const activeColor = VOUCHER_METADATA[type].color;
+  // Enforce Default Blue Theme
+  const activeColor = 'blue';
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setActiveSearchIdx(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleAddEntry = () => {
     setEntries([...entries, { ledgerId: '', debit: 0, credit: 0 }]);
@@ -44,6 +59,17 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
     const newEntries = [...entries];
     newEntries[index] = { ...newEntries[index], [field]: value };
     setEntries(newEntries);
+  };
+
+  const handleSearchFocus = (index: number) => {
+    setActiveSearchIdx(index);
+    setSearchQuery('');
+  };
+
+  const selectLedger = (index: number, ledgerId: string) => {
+    updateEntry(index, 'ledgerId', ledgerId);
+    setActiveSearchIdx(null);
+    setSearchQuery('');
   };
 
   const handleSave = async () => {
@@ -165,13 +191,13 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
             <button 
               key={v} 
               onClick={() => setType(v)} 
-              className={`flex items-center gap-3 px-6 md:px-8 py-4 rounded-2xl text-[10px] md:text-[11px] font-black uppercase tracking-[0.1em] transition-all whitespace-nowrap mr-1 ${
+              className={`flex items-center gap-3 px-6 md:px-8 py-4 rounded-2xl text-[10px] md:text-[11px] font-black uppercase tracking-[0.1em] transition-all whitespace-nowrap mr-2 ${
                 type === v 
-                  ? `bg-white dark:bg-slate-800 text-${VOUCHER_METADATA[v].color}-600 dark:text-${VOUCHER_METADATA[v].color}-400 shadow-xl ring-1 ring-slate-100 dark:ring-slate-700` 
-                  : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
+                  ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/20 transform scale-105' 
+                  : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 border border-slate-100 dark:border-slate-800 hover:border-slate-200'
               }`}
             >
-              <span className={type === v ? `text-${VOUCHER_METADATA[v].color}-500` : 'opacity-40'}>{VOUCHER_METADATA[v].icon}</span>
+              <span className={type === v ? 'text-white' : `text-${VOUCHER_METADATA[v].color}-500 opacity-60`}>{VOUCHER_METADATA[v].icon}</span>
               {v}
             </button>
           ))}
@@ -186,7 +212,7 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
                 type="text" 
                 value={number} 
                 onChange={e => setNumber(e.target.value)} 
-                className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 font-mono font-black text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 shadow-inner transition-all" 
+                className={`w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 font-mono font-black text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-${activeColor}-500/10 shadow-inner transition-all`} 
               />
             </div>
             <div className="md:col-span-4">
@@ -195,7 +221,7 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
                 type="date" 
                 value={date} 
                 onChange={e => setDate(e.target.value)} 
-                className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 font-black text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 shadow-inner transition-all" 
+                className={`w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 font-black text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-${activeColor}-500/10 shadow-inner transition-all`} 
               />
             </div>
             <div className="md:col-span-4 flex items-end">
@@ -225,16 +251,38 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
             {entries.map((entry, idx) => (
               <div key={idx} className="bg-slate-50/50 dark:bg-slate-800/40 p-5 md:p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800/50 group hover:border-blue-400 dark:hover:border-blue-700 transition-all">
                 <div className="hidden md:grid grid-cols-12 gap-8 items-center">
-                  <div className="col-span-6 relative">
-                    <select 
-                      value={entry.ledgerId} 
-                      onChange={e => updateEntry(idx, 'ledgerId', e.target.value)} 
-                      className={`w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm font-bold outline-none appearance-none text-slate-800 dark:text-white focus:ring-4 focus:ring-${activeColor}-500/10 transition-all`}
-                    >
-                      <option value="">Select Account...</option>
-                      {store.ledgers.map((l: any) => (<option key={l.id} value={l.id}>{l.name} • {l.group}</option>))}
-                    </select>
-                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600 pointer-events-none" size={20} />
+                  <div className="col-span-6 relative" ref={activeSearchIdx === idx ? searchRef : null}>
+                    <div className="relative">
+                      <input 
+                        type="text"
+                        placeholder="Search Ledger / Account..."
+                        className={`w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-sm font-bold outline-none text-slate-800 dark:text-white focus:ring-4 focus:ring-${activeColor}-500/10 transition-all shadow-inner`}
+                        value={activeSearchIdx === idx ? searchQuery : (store.ledgers.find((l:any) => l.id === entry.ledgerId)?.name || '')}
+                        onFocus={() => handleSearchFocus(idx)}
+                        onChange={e => setSearchQuery(e.target.value)}
+                      />
+                      <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600 pointer-events-none" size={20} />
+                      {activeSearchIdx === idx && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl z-50 max-h-60 overflow-y-auto custom-scrollbar animate-in zoom-in-95 p-2">
+                           {store.ledgers.filter((l:any) => l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.group.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 ? (
+                               store.ledgers
+                                .filter((l:any) => l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.group.toLowerCase().includes(searchQuery.toLowerCase()))
+                                .map((l: any) => (
+                                    <button 
+                                      key={l.id} 
+                                      onClick={() => selectLedger(idx, l.id)} 
+                                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        <p className="text-sm font-bold text-slate-800 dark:text-white">{l.name}</p>
+                                        <p className="text-[10px] font-black uppercase text-slate-400">{l.group} • Bal: ₹{l.currentBalance.toLocaleString()}</p>
+                                    </button>
+                                ))
+                           ) : (
+                               <div className="p-4 text-center text-xs font-bold text-slate-400">No matching accounts found</div>
+                           )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-3">
                     <input 
@@ -242,7 +290,7 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
                       value={entry.debit || ''} 
                       placeholder="0.00" 
                       onChange={e => updateEntry(idx, 'debit', Number(e.target.value))} 
-                      className={`w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-right font-mono font-black outline-none text-slate-800 dark:text-white focus:ring-4 focus:ring-${activeColor}-500/10 transition-all shadow-inner`} 
+                      className={`w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-right font-mono font-black outline-none text-slate-800 dark:text-white focus:ring-4 focus:ring-${activeColor}-500/10 transition-all shadow-inner`} 
                     />
                   </div>
                   <div className="col-span-3 flex items-center gap-4">
@@ -251,7 +299,7 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
                       value={entry.credit || ''} 
                       placeholder="0.00" 
                       onChange={e => updateEntry(idx, 'credit', Number(e.target.value))} 
-                      className={`w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-right font-mono font-black outline-none text-slate-800 dark:text-white focus:ring-4 focus:ring-${activeColor}-500/10 transition-all shadow-inner`} 
+                      className={`w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4 text-right font-mono font-black outline-none text-slate-800 dark:text-white focus:ring-4 focus:ring-${activeColor}-500/10 transition-all shadow-inner`} 
                     />
                     <button onClick={() => removeEntry(idx)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors shrink-0"><Trash2 size={20} /></button>
                   </div>
@@ -296,7 +344,7 @@ const VoucherEntry: React.FC<{ store: any, onComplete: () => void }> = ({ store,
                   placeholder="Summarize transaction for auditor review..." 
                   value={narration} 
                   onChange={e => setNarration(e.target.value)} 
-                  className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-[2rem] px-8 py-6 text-sm font-bold text-slate-800 dark:text-white outline-none resize-none focus:ring-4 focus:ring-blue-500/10 shadow-inner transition-all" 
+                  className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-[2rem] px-8 py-6 text-sm font-bold text-slate-800 dark:text-white outline-none resize-none focus:ring-4 focus:ring-blue-500/10 shadow-inner transition-all" 
                 />
               </div>
               <div className="lg:col-span-5">
