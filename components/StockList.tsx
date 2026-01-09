@@ -62,9 +62,9 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
             <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">{selectedStockItem.name}</h2>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">{selectedStockItem.sku} • {selectedStockItem.trackingType === 'none' ? 'General Stock' : `${selectedStockItem.trackingType} Tracked`}</p>
           </div>
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl no-print">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl no-print overflow-x-auto">
             {['overview', 'ledger', 'tracking'].map(t => (
-              <button key={t} onClick={() => setDetailTab(t as any)} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${detailTab === t ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>{t}</button>
+              <button key={t} onClick={() => setDetailTab(t as any)} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${detailTab === t ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>{t}</button>
             ))}
           </div>
         </div>
@@ -184,7 +184,7 @@ const StockList: React.FC<{ store: any }> = ({ store }) => {
               <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-white/10 rounded-full transition-all"><X size={24}/></button>
             </div>
             <form onSubmit={handleCreateStockItem} className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="col-span-full"><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Nomenclature</label><input required className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black focus:ring-4 focus:ring-blue-500/10 outline-none transition-all" placeholder="Product Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/></div>
                 <div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">SKU Code</label><input required className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-mono font-black focus:ring-4 focus:ring-blue-500/10 outline-none transition-all" placeholder="ITEM-001" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})}/></div>
                 <div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">HSN / SAC</label><input className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-mono font-black focus:ring-4 focus:ring-blue-500/10 outline-none transition-all" placeholder="9999" value={formData.hsn} onChange={e => setFormData({...formData, hsn: e.target.value})}/></div>

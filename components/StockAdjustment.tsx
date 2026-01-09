@@ -87,7 +87,7 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
 
   if (isSaved) {
     return (
-      <div className="h-full flex flex-col items-center justify-center animate-in zoom-in-95 duration-500">
+      <div className="h-full flex flex-col items-center justify-center animate-in zoom-in-95 duration-500 px-4 text-center">
         <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-blue-200">
           <CheckCircle2 size={56} className="text-blue-600" />
         </div>
@@ -113,15 +113,15 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
             <SlidersHorizontal size={32} />
           </div>
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Stock Adjustment</h2>
-            <p className="text-slate-500 font-medium">Reconcile physical vs system inventory levels</p>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Stock Adjustment</h2>
+            <p className="text-slate-500 font-medium text-xs md:text-sm">Reconcile physical vs system inventory levels</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3 space-y-8">
-          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm relative overflow-hidden">
+          <div className="bg-white rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm relative overflow-hidden">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><Package size={20} /></div>
@@ -147,8 +147,8 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                   const isInvalid = stock && item.type === 'Decrease' && item.qty > stock.currentStock;
                   return (
                     <div key={item.id} className={`p-6 rounded-[2rem] border transition-all ${isInvalid ? 'bg-rose-50 border-rose-200' : 'bg-slate-50/50 border-slate-100'} space-y-6`}>
-                      <div className="grid grid-cols-12 gap-4 items-end">
-                        <div className="col-span-4">
+                      <div className="grid grid-cols-2 md:grid-cols-12 gap-4 items-end">
+                        <div className="col-span-2 md:col-span-4">
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">SKU / Item</label>
                           <select 
                             className="w-full px-4 py-3 rounded-xl bg-white border border-slate-100 font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
@@ -161,7 +161,7 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                             ))}
                           </select>
                         </div>
-                        <div className="col-span-2">
+                        <div className="col-span-2 md:col-span-2">
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Action</label>
                           <select 
                             className={`w-full px-4 py-3 rounded-xl border font-black text-sm outline-none transition-colors ${item.type === 'Increase' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}
@@ -172,7 +172,7 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                             <option value="Decrease">Subtract (-)</option>
                           </select>
                         </div>
-                        <div className="col-span-2">
+                        <div className="col-span-1 md:col-span-2">
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Qty</label>
                           <input 
                             type="number"
@@ -182,7 +182,7 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                             placeholder="0"
                           />
                         </div>
-                        <div className="col-span-3">
+                        <div className="col-span-2 md:col-span-3">
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Reason</label>
                           <select 
                             className="w-full px-4 py-3 rounded-xl bg-white border border-slate-100 font-bold text-sm outline-none appearance-none"
@@ -192,7 +192,7 @@ const StockAdjustment: React.FC<{ store: any, onComplete: () => void }> = ({ sto
                             {ADJUSTMENT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                           </select>
                         </div>
-                        <div className="col-span-1">
+                        <div className="col-span-1 md:col-span-1 flex justify-end">
                           <button 
                             onClick={() => removeItem(item.id)}
                             className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"

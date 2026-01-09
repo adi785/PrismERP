@@ -4,7 +4,6 @@ import { Plus, Trash2, Printer, Save, CheckCircle2, Package, User, Calculator, S
 import { StockItem, Ledger, TrackingDetail, InventoryMovement } from '../types';
 import { triggerPrint, numberToWords } from '../utils/exportUtils';
 
-// Added missing 'unit' property to BillingItem interface to fix the reported error.
 interface BillingItem {
   id: string; itemId: string; name: string; sku: string; hsn: string; quantity: number; rate: number; discountType: 'percentage' | 'fixed'; discountValue: number; discountAmount: number; cgstRate: number; sgstRate: number; igstRate: number; cgstAmount: number; sgstAmount: number; igstAmount: number; amount: number; totalWithTax: number; availableStock: number; unit: string;
   trackingType: 'none' | 'batch' | 'serial';
@@ -23,13 +22,10 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
   
   const [activeSearchId, setActiveSearchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [partySearchQuery, setPartySearchQuery] = useState('');
-  const [showPartySearch, setShowPartySearch] = useState(false);
   
   const [trackingSelectorItem, setTrackingSelectorItem] = useState<BillingItem | null>(null);
   
   const searchRef = useRef<HTMLDivElement>(null);
-  const partyRef = useRef<HTMLDivElement>(null);
 
   const calculateLineItem = (item: BillingItem, currentTaxType: 'Intra' | 'Inter'): BillingItem => {
     const gross = (item.quantity || 0) * (item.rate || 0);
@@ -56,14 +52,12 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
     return { taxable, gstTotal: consolidatedGst, total: finalPayable, roundOff, hasDeficit, trackingPending };
   }, [items, taxType]);
 
-  // Initializing new line items with default 'unit' value.
   const addItem = () => {
     const newItem: BillingItem = { id: Date.now().toString(), itemId: '', name: '', sku: '', hsn: '', quantity: 1, rate: 0, discountType: 'percentage', discountValue: 0, discountAmount: 0, cgstRate: 9, sgstRate: 9, igstRate: 18, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, amount: 0, totalWithTax: 0, availableStock: 0, trackingType: 'none', assignedTracking: [], unit: 'Nos' };
     setItems([...items, calculateLineItem(newItem, taxType)]);
     setTimeout(() => setActiveSearchId(newItem.id), 50);
   };
 
-  // Populating 'unit' from StockItem to ensure consistency during item selection.
   const updateItem = (id: string, updates: Partial<BillingItem>) => {
     setItems(items.map(item => {
       if (item.id === id) {
@@ -108,47 +102,97 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
   const openTrackingSelection = (item: BillingItem) => setTrackingSelectorItem(item);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in pb-20 no-print">
+    <div className="max-w-7xl mx-auto space-y-6 md:space-y-10 animate-in fade-in pb-20 no-print">
       {isSaved ? (
-        <div className="text-center py-20"><div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl"><FileCheck size={40}/></div><h2 className="text-4xl font-black mb-10 tracking-tight">Invoice Finalized</h2><div className="flex gap-4 justify-center"><button onClick={()=>triggerPrint()} className="px-10 py-5 bg-slate-900 text-white rounded-3xl font-black">Print Invoice</button><button onClick={onComplete} className="px-10 py-5 border border-slate-200 rounded-3xl font-black">Daybook</button></div></div>
+        <div className="text-center py-20 px-4">
+          <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl"><FileCheck size={40}/></div>
+          <h2 className="text-3xl md:text-4xl font-black mb-10 tracking-tight text-slate-900 dark:text-white">Invoice Finalized</h2>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button onClick={()=>triggerPrint()} className="px-8 py-4 bg-slate-900 dark:bg-blue-600 text-white rounded-2xl font-black">Print Invoice</button>
+            <button onClick={onComplete} className="px-8 py-4 border border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-600 dark:text-slate-300">Daybook</button>
+          </div>
+        </div>
       ) : (
         <>
-          <div className="flex justify-between items-center"><div className="flex items-center gap-6"><div className="p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><FileText size={32}/></div><h2 className="text-3xl font-black tracking-tight">Sales Invoicing Suite</h2></div><div className="flex bg-white dark:bg-slate-900 p-2 rounded-3xl border border-slate-100 dark:border-slate-800"><button onClick={()=>setTaxType('Intra')} className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${taxType==='Intra'?'bg-blue-600 text-white shadow-xl':'text-slate-400'}`}>Intra-State</button><button onClick={()=>setTaxType('Inter')} className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${taxType==='Inter'?'bg-blue-600 text-white shadow-xl':'text-slate-400'}`}>Inter-State</button></div></div>
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
+            <div className="flex items-center gap-6">
+              <div className="p-4 md:p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><FileText size={28} md:size={32}/></div>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Sales Invoicing Suite</h2>
+                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Create Customer Bill</p>
+              </div>
+            </div>
+            <div className="flex bg-white dark:bg-slate-900 p-2 rounded-3xl border border-slate-100 dark:border-slate-800 w-full md:w-auto">
+              <button onClick={()=>setTaxType('Intra')} className={`flex-1 md:flex-none px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${taxType==='Intra'?'bg-blue-600 text-white shadow-xl':'text-slate-400'}`}>Intra-State</button>
+              <button onClick={()=>setTaxType('Inter')} className={`flex-1 md:flex-none px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${taxType==='Inter'?'bg-blue-600 text-white shadow-xl':'text-slate-400'}`}>Inter-State</button>
+            </div>
+          </div>
 
-          <div className="grid grid-cols-4 gap-10">
-            <div className="col-span-3 space-y-10">
-              <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-10">
-                <div className="col-span-1 relative"><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Customer Account</label><input className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black" placeholder="Select or Type Party..." value={party.name} onChange={e=>setParty({...party, name:e.target.value})}/></div>
-                <div className="col-span-1 flex gap-6">
-                  <div className="flex-1"><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Settlement</label><div className="flex bg-slate-50 dark:bg-slate-950/40 p-1 rounded-2xl border dark:border-slate-800 h-14"><button onClick={()=>setPaymentMode('Cash')} className={`flex-1 rounded-xl font-black text-[10px] uppercase ${paymentMode==='Cash'?'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm':'text-slate-400'}`}>Cash</button><button onClick={()=>setPaymentMode('Credit')} className={`flex-1 rounded-xl font-black text-[10px] uppercase ${paymentMode==='Credit'?'bg-white dark:bg-slate-800 text-blue-600 shadow-sm':'text-slate-400'}`}>Credit</button></div></div>
-                  <div className="flex-1"><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Invoice #</label><input className="w-full h-14 px-6 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border dark:border-slate-800 font-mono font-black text-sm" value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)}/></div>
+          <div className="flex flex-col xl:flex-row gap-8">
+            <div className="flex-1 space-y-8">
+              <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                <div className="col-span-1 md:col-span-1 relative">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Customer Account</label>
+                  <input className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black text-slate-800 dark:text-white" placeholder="Select or Type Party..." value={party.name} onChange={e=>setParty({...party, name:e.target.value})}/>
+                </div>
+                <div className="col-span-1 flex flex-col sm:flex-row gap-6">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Settlement</label>
+                    <div className="flex bg-slate-50 dark:bg-slate-950/40 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 h-14">
+                      <button onClick={()=>setPaymentMode('Cash')} className={`flex-1 rounded-xl font-black text-[10px] uppercase ${paymentMode==='Cash'?'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm':'text-slate-400'}`}>Cash</button>
+                      <button onClick={()=>setPaymentMode('Credit')} className={`flex-1 rounded-xl font-black text-[10px] uppercase ${paymentMode==='Credit'?'bg-white dark:bg-slate-800 text-blue-600 shadow-sm':'text-slate-400'}`}>Credit</button>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Invoice #</label>
+                    <input className="w-full h-14 px-6 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-mono font-black text-sm text-slate-800 dark:text-white" value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)}/>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-10 rounded-[3.5rem] shadow-sm border border-slate-100 dark:border-slate-800">
-                <div className="flex justify-between items-center mb-8"><h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-3"><Package size={20} className="text-blue-500" /> Outward Manifest</h3><button onClick={addItem} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest"><Plus size={18} /> Add Line</button></div>
-                <div className="space-y-8">
+              <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-3 text-slate-700 dark:text-slate-300">
+                    <Package size={20} className="text-blue-500" /> Outward Manifest
+                  </h3>
+                  <button onClick={addItem} className="px-5 py-2.5 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2">
+                    <Plus size={16} /> Add Line
+                  </button>
+                </div>
+                <div className="space-y-6">
                   {items.map(item => (
-                    <div key={item.id} className="p-8 bg-slate-50/50 dark:bg-slate-800/30 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 group relative" ref={activeSearchId === item.id ? searchRef : null}>
-                      <div className="grid grid-cols-12 gap-6 items-end">
-                        <div className="col-span-4 relative">
+                    <div key={item.id} className="p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-[2rem] border border-slate-100 dark:border-slate-800 group relative" ref={activeSearchId === item.id ? searchRef : null}>
+                      <div className="grid grid-cols-2 md:grid-cols-12 gap-4 items-end">
+                        <div className="col-span-2 md:col-span-4 relative">
                           <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Item Search</label>
-                          <input className="w-full px-5 py-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black shadow-inner" placeholder={item.name || "Select SKU..."} value={activeSearchId === item.id ? searchQuery : item.name} onFocus={()=>{setActiveSearchId(item.id); setSearchQuery('')}} onChange={e=>setSearchQuery(e.target.value)}/>
+                          <input 
+                            className="w-full px-5 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black shadow-inner text-sm text-slate-800 dark:text-white" 
+                            placeholder={item.name || "Select SKU..."} 
+                            value={activeSearchId === item.id ? searchQuery : item.name} 
+                            onFocus={()=>{setActiveSearchId(item.id); setSearchQuery('')}} 
+                            onChange={e=>setSearchQuery(e.target.value)}
+                          />
                           {activeSearchId === item.id && (
                             <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl z-50 p-2 max-h-60 overflow-y-auto">
-                              {store.stockItems.filter((s:any)=>s.name.toLowerCase().includes(searchQuery.toLowerCase())).map((s:any)=><button key={s.id} onClick={()=>{updateItem(item.id, {itemId: s.id}); setActiveSearchId(null)}} className="w-full p-4 text-left font-black text-sm hover:bg-blue-600 hover:text-white rounded-xl transition-all">{s.name}</button>)}
+                              {store.stockItems.filter((s:any)=>s.name.toLowerCase().includes(searchQuery.toLowerCase())).map((s:any)=><button key={s.id} onClick={()=>{updateItem(item.id, {itemId: s.id}); setActiveSearchId(null)}} className="w-full p-4 text-left font-black text-sm hover:bg-blue-600 hover:text-white rounded-xl transition-all text-slate-800 dark:text-white">{s.name}</button>)}
                             </div>
                           )}
                         </div>
-                        <div className="col-span-2"><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Quantity</label><input type="number" className="w-full px-5 py-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-center" value={item.quantity} onChange={e=>updateItem(item.id, {quantity: Number(e.target.value)})}/></div>
-                        <div className="col-span-3"><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Sale Rate (₹)</label><input type="number" className="w-full px-5 py-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-right" value={item.rate} onChange={e=>updateItem(item.id, {rate: Number(e.target.value)})}/></div>
-                        <div className="col-span-3 flex items-center justify-end gap-3 pb-1">
+                        <div className="col-span-1 md:col-span-2">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 text-center md:text-left">Quantity</label>
+                          <input type="number" className="w-full px-5 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-center text-sm text-slate-800 dark:text-white" value={item.quantity} onChange={e=>updateItem(item.id, {quantity: Number(e.target.value)})}/>
+                        </div>
+                        <div className="col-span-1 md:col-span-3">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 text-right">Rate (₹)</label>
+                          <input type="number" className="w-full px-5 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-right text-sm text-slate-800 dark:text-white" value={item.rate} onChange={e=>updateItem(item.id, {rate: Number(e.target.value)})}/>
+                        </div>
+                        <div className="col-span-2 md:col-span-3 flex items-center justify-end gap-2 pb-1">
                           {item.trackingType !== 'none' && (
-                            <button onClick={()=>openTrackingSelection(item)} className={`px-4 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 border-2 transition-all ${item.assignedTracking.length > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse'}`}>
-                              <Boxes size={16}/> {item.assignedTracking.length > 0 ? 'Assigned' : `Pick ${item.trackingType}`}
+                            <button onClick={()=>openTrackingSelection(item)} className={`px-3 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center gap-1 border-2 transition-all ${item.assignedTracking.length > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse'}`}>
+                              <Boxes size={14}/> {item.assignedTracking.length > 0 ? 'Set' : `Pick ${item.trackingType}`}
                             </button>
                           )}
-                          <button onClick={()=>setItems(items.filter(i=>i.id!==item.id))} className="p-4 text-rose-300 hover:text-rose-600 transition-colors"><Trash2 size={24}/></button>
+                          <button onClick={()=>setItems(items.filter(i=>i.id!==item.id))} className="p-3 text-rose-300 hover:text-rose-600 transition-colors"><Trash2 size={20}/></button>
                         </div>
                       </div>
                     </div>
@@ -157,21 +201,21 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
               </div>
             </div>
 
-            <div className="space-y-8">
-              <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl space-y-8 relative overflow-hidden">
+            <div className="w-full xl:w-96 shrink-0 space-y-8">
+              <div className="bg-slate-900 p-8 md:p-10 rounded-[3rem] text-white shadow-2xl space-y-8 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 scale-150"><Calculator size={180}/></div>
                 <div className="relative z-10 space-y-6">
                   <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/10 pb-6">Checkout Summary</h4>
-                  <div className="flex justify-between text-xs font-black text-slate-400 uppercase"><span>Taxable Base</span><span className="text-white">₹{totals.taxable}</span></div>
-                  <div className="flex justify-between text-xs font-black text-slate-400 uppercase"><span>Consolidated GST</span><span className="text-white">₹{totals.gstTotal}</span></div>
+                  <div className="flex justify-between text-xs font-black text-slate-400 uppercase"><span>Taxable Base</span><span className="text-white">₹{totals.taxable.toLocaleString()}</span></div>
+                  <div className="flex justify-between text-xs font-black text-slate-400 uppercase"><span>Consolidated GST</span><span className="text-white">₹{totals.gstTotal.toLocaleString()}</span></div>
                   <div className="pt-6 border-t border-white/10">
                     <p className="text-[10px] font-black text-blue-500 uppercase mb-3">Grand Total</p>
-                    <p className="text-6xl font-black tracking-tighter">₹{totals.total.toLocaleString()}</p>
+                    <p className="text-4xl md:text-5xl font-black tracking-tighter">₹{totals.total.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
-              <button onClick={handleSave} disabled={isSaving || items.length === 0 || totals.trackingPending} className="w-full py-10 bg-blue-600 text-white rounded-[3rem] font-black text-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-4 group">
-                {isSaving ? <Loader2 className="animate-spin" size={32}/> : <><ShieldCheck size={28}/> Finalize & Authorize</>}
+              <button onClick={handleSave} disabled={isSaving || items.length === 0 || totals.trackingPending} className="w-full py-6 md:py-8 bg-blue-600 text-white rounded-[2.5rem] font-black text-lg md:text-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-3 group disabled:opacity-50">
+                {isSaving ? <Loader2 className="animate-spin" size={24}/> : <><ShieldCheck size={24}/> Finalize</>}
               </button>
             </div>
           </div>

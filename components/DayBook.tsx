@@ -61,14 +61,14 @@ const DayBook: React.FC<{ store: any }> = ({ store }) => {
       </div>
 
       <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row items-center gap-6 no-print">
-        <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-950/40 p-2 rounded-2xl w-full lg:w-auto border border-slate-100 dark:border-slate-800 shadow-inner">
+        <div className="flex flex-col md:flex-row items-center gap-4 bg-slate-50 dark:bg-slate-950/40 p-2 rounded-2xl w-full lg:w-auto border border-slate-100 dark:border-slate-800 shadow-inner">
           <div className="flex items-center gap-2 px-3">
             <Calendar size={16} className="text-slate-400" />
             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Period</span>
           </div>
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl text-xs font-bold dark:text-white outline-none border border-slate-100 dark:border-slate-800 shadow-sm" />
-          <span className="text-slate-300 dark:text-slate-700 font-bold">to</span>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl text-xs font-bold dark:text-white outline-none border border-slate-100 dark:border-slate-800 shadow-sm" />
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl text-xs font-bold dark:text-white outline-none border border-slate-100 dark:border-slate-800 shadow-sm w-full md:w-auto" />
+          <span className="text-slate-300 dark:text-slate-700 font-bold hidden md:inline">to</span>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl text-xs font-bold dark:text-white outline-none border border-slate-100 dark:border-slate-800 shadow-sm w-full md:w-auto" />
         </div>
 
         <div className="relative flex-1 w-full group">

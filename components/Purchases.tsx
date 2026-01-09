@@ -208,7 +208,7 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in pb-20 no-print">
+    <div className="max-w-7xl mx-auto space-y-8 md:space-y-10 animate-in fade-in pb-20 no-print">
       {isSaved ? (
         <div className="text-center py-20 flex flex-col items-center">
           <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-8 shadow-xl shadow-emerald-500/10 animate-bounce">
@@ -219,57 +219,57 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
           <button onClick={onComplete} className="px-12 py-5 bg-slate-900 text-white rounded-[2.5rem] font-black shadow-2xl transition-transform active:scale-95">View Daybook</button>
         </div>
       ) : (
-        <div className="space-y-10">
-          <div className="flex justify-between items-center">
+        <div className="space-y-6 md:space-y-10">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex items-center gap-6">
-              <div className="p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><ShoppingCart size={32}/></div>
+              <div className="p-4 md:p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><ShoppingCart size={28} md:size={32}/></div>
               <div>
-                <h2 className="text-3xl font-black tracking-tight">Inward Purchase Bill</h2>
+                <h2 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Inward Purchase Bill</h2>
                 <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">Audit-Ready Procurement Hub</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 w-full md:w-auto">
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAIScan} />
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isScanning}
-                className="flex items-center gap-3 px-8 py-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all shadow-md group border-2 border-blue-200 dark:border-blue-800"
+                className="flex-1 md:flex-none flex items-center justify-center gap-3 px-6 md:px-8 py-3 md:py-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all shadow-md group border-2 border-blue-200 dark:border-blue-800"
               >
                 {isScanning ? <Loader2 size={20} className="animate-spin" /> : <><Sparkles size={20} className="animate-pulse" /> AI Scan Bill</>}
               </button>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-            <div className="lg:col-span-3 space-y-10">
-              <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-10">
-                <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest ml-1">Bill Number</label><input className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black focus:ring-4 focus:ring-blue-500/5 outline-none transition-all" value={vendor.billNo} onChange={e => setVendor({...vendor, billNo: e.target.value})}/></div>
-                <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest ml-1">Vendor Account</label><select className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black appearance-none outline-none focus:ring-4 focus:ring-blue-500/5 transition-all" value={vendor.ledgerId} onChange={e => setVendor({...vendor, ledgerId: e.target.value})}><option value="">Cash / Local Direct</option>{store.ledgers.filter((l:Ledger)=>l.group==='Sundry Creditors').map((l:Ledger)=><option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
+          <div className="flex flex-col xl:flex-row gap-10">
+            <div className="flex-1 space-y-10">
+              <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest ml-1">Bill Number</label><input className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black focus:ring-4 focus:ring-blue-500/5 outline-none transition-all text-slate-800 dark:text-white" value={vendor.billNo} onChange={e => setVendor({...vendor, billNo: e.target.value})}/></div>
+                <div><label className="block text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest ml-1">Vendor Account</label><select className="w-full px-6 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 font-black appearance-none outline-none focus:ring-4 focus:ring-blue-500/5 transition-all text-slate-800 dark:text-white" value={vendor.ledgerId} onChange={e => setVendor({...vendor, ledgerId: e.target.value})}><option value="">Cash / Local Direct</option>{store.ledgers.filter((l:Ledger)=>l.group==='Sundry Creditors').map((l:Ledger)=><option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-10 rounded-[3.5rem] shadow-sm border border-slate-100 dark:border-slate-800 space-y-8">
+              <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[3.5rem] shadow-sm border border-slate-100 dark:border-slate-800 space-y-8">
                 <div className="flex justify-between items-center mb-6">
                   <div className="flex items-center gap-3">
                     <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-blue-500 shadow-inner"><Package size={20} /></div>
-                    <h3 className="text-sm font-black uppercase tracking-widest">Procurement Manifest</h3>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Procurement Manifest</h3>
                   </div>
                   <button onClick={handleAddItem} className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-transform active:scale-95"><Plus size={16} /> Add SKU</button>
                 </div>
                 {items.map(item => (
-                  <div key={item.id} className="p-8 bg-slate-50/50 dark:bg-slate-800/30 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group animate-in slide-in-from-left-4 duration-300" ref={activeSearchId === item.id ? searchRef : null}>
-                    <div className="grid grid-cols-12 gap-6 items-end">
-                      <div className="col-span-5 relative">
+                  <div key={item.id} className="p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 relative group animate-in slide-in-from-left-4 duration-300" ref={activeSearchId === item.id ? searchRef : null}>
+                    <div className="grid grid-cols-2 md:grid-cols-12 gap-4 items-end">
+                      <div className="col-span-2 md:col-span-5 relative">
                         <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Stock Item Lookup</label>
-                        <input className="w-full px-5 py-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black shadow-inner outline-none focus:ring-2 focus:ring-blue-500" placeholder={item.name || "Select SKU..."} value={activeSearchId === item.id ? searchQuery : item.name} onFocus={()=>{setActiveSearchId(item.id); setSearchQuery('')}} onChange={e=>setSearchQuery(e.target.value)}/>
+                        <input className="w-full px-5 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black shadow-inner outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-white" placeholder={item.name || "Select SKU..."} value={activeSearchId === item.id ? searchQuery : item.name} onFocus={()=>{setActiveSearchId(item.id); setSearchQuery('')}} onChange={e=>setSearchQuery(e.target.value)}/>
                         {activeSearchId === item.id && (
                           <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl z-50 p-2 max-h-60 overflow-y-auto custom-scrollbar animate-in zoom-in-95">
                             {store.stockItems.filter((s:any)=>s.name.toLowerCase().includes(searchQuery.toLowerCase())).map((s:any)=><button key={s.id} onClick={()=>{updateItem(item.id, {itemId: s.id}); setActiveSearchId(null)}} className="w-full p-4 text-left font-black text-sm hover:bg-blue-600 hover:text-white rounded-xl transition-all flex items-center justify-between"><span>{s.name}</span><span className="text-[9px] opacity-40 uppercase">{s.sku}</span></button>)}
                           </div>
                         )}
                       </div>
-                      <div className="col-span-2"><label className="block text-[10px] font-black uppercase text-slate-400 mb-2 text-center">Quantity</label><input type="number" className="w-full px-5 py-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-center outline-none focus:ring-2 focus:ring-blue-500" value={item.qty || ''} onChange={e=>updateItem(item.id, {qty: Number(e.target.value)})}/></div>
-                      <div className="col-span-3"><label className="block text-[10px] font-black uppercase text-slate-400 mb-2 text-right">Inward Cost (₹)</label><input type="number" className="w-full px-5 py-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-right outline-none focus:ring-2 focus:ring-blue-500" value={item.rate || ''} onChange={e=>updateItem(item.id, {rate: Number(e.target.value)})}/></div>
-                      <div className="col-span-2 flex justify-end pb-1"><button onClick={()=>setItems(items.filter(i=>i.id!==item.id))} className="p-4 text-rose-300 hover:text-rose-600 transition-colors"><Trash2 size={20}/></button></div>
+                      <div className="col-span-1 md:col-span-2"><label className="block text-[10px] font-black uppercase text-slate-400 mb-2 text-center">Quantity</label><input type="number" className="w-full px-5 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-center outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-white" value={item.qty || ''} onChange={e=>updateItem(item.id, {qty: Number(e.target.value)})}/></div>
+                      <div className="col-span-1 md:col-span-3"><label className="block text-[10px] font-black uppercase text-slate-400 mb-2 text-right">Inward Cost (₹)</label><input type="number" className="w-full px-5 py-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-black text-right outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-white" value={item.rate || ''} onChange={e=>updateItem(item.id, {rate: Number(e.target.value)})}/></div>
+                      <div className="col-span-2 md:col-span-2 flex justify-end pb-1"><button onClick={()=>setItems(items.filter(i=>i.id!==item.id))} className="p-3 text-rose-300 hover:text-rose-600 transition-colors"><Trash2 size={20}/></button></div>
                     </div>
 
                     {item.trackingType !== 'none' && (
@@ -282,7 +282,7 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
                               <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1">Expiry Control</label><input type="date" className="w-full px-4 py-3 rounded-lg bg-white border border-slate-200 font-black text-xs outline-none focus:ring-2 focus:ring-blue-500" value={item.trackingDetails[0]?.expiry} onChange={e=>{const d=[...item.trackingDetails]; d[0]={...d[0], expiry: e.target.value}; updateItem(item.id, {trackingDetails: d})}}/></div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                               {item.trackingDetails.map((td, idx) => (
                                 <div key={idx}><label className="block text-[8px] font-black text-slate-400 uppercase mb-1 ml-1">Serial #{idx+1}</label><input className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 font-mono text-[10px] font-black outline-none focus:ring-2 focus:ring-blue-500" value={td.identifier} onChange={e=>{const d=[...item.trackingDetails]; d[idx]={identifier: e.target.value}; updateItem(item.id, {trackingDetails: d})}}/></div>
                               ))}
@@ -296,8 +296,8 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
               </div>
             </div>
 
-            <div className="space-y-10">
-              <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
+            <div className="w-full xl:w-96 shrink-0 space-y-10">
+              <div className="bg-slate-900 p-8 md:p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 scale-150 group-hover:scale-[1.8] transition-transform duration-700"><Calculator size={180}/></div>
                 <div className="relative z-10 space-y-6">
                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/10 pb-6">Payment Recognition</h3>
@@ -305,11 +305,11 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
                   <div className="flex justify-between font-black uppercase text-xs text-slate-400"><span>Consolidated GST</span><span className="text-white">₹{totals.gst.toLocaleString()}</span></div>
                   <div className="pt-6 border-t border-white/10">
                     <p className="text-[10px] font-black text-blue-500 uppercase mb-3">Voucher Grand Total</p>
-                    <p className="text-5xl font-black tracking-tighter">₹{totals.grand.toLocaleString()}</p>
+                    <p className="text-4xl md:text-5xl font-black tracking-tighter">₹{totals.grand.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
-              <button onClick={handleSave} disabled={isSaving || items.length === 0} className="w-full py-10 bg-blue-600 text-white rounded-[3rem] font-black text-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-4 group transition-transform active:scale-95 disabled:opacity-50">
+              <button onClick={handleSave} disabled={isSaving || items.length === 0} className="w-full py-6 md:py-10 bg-blue-600 text-white rounded-[3rem] font-black text-lg md:text-xl shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-4 group transition-transform active:scale-95 disabled:opacity-50">
                 {isSaving ? <Loader2 className="animate-spin" size={32}/> : <><Save size={24}/> Authorize Inward</>}
               </button>
             </div>
