@@ -1,5 +1,5 @@
 <div align="center">
-  <img width="1200" height="475" alt="PrismERP Banner"/>
+  <img width="1200" height="475" title="PrismERP Banner"/>
   
   <h1 align="center">PrismERP — Advanced Business Suite</h1>
   <p align="center">A modern, AI-powered ERP for accounting, inventory, and business analytics.</p>
