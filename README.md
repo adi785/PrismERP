@@ -13,7 +13,7 @@
 
 ## ✨ Why PrismERP?
 
-PrismERP is built to make business finance and inventory management beautiful, fast, and intelligent. It combines a clean React + TypeScript frontend with a Supabase backend and AI-powered analytics (Google Gemini) to help small and medium businesses automate bookkeeping, track stock, and generate insightful reports.
+PrismERP is built to make business finance and inventory management beautiful, fast, and intelligent. It combines a clean React + TypeScript frontend with a Supabase backend and AI-powered analytics.
 
 - Friendly UI and keyboard-first workflows
 - Real-time inventory & ledger syncing
