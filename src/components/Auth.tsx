@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2, MonitorOff, Send, Check } from 'lucide-react';
+import { Mail, ArrowRight, Building2, Plus, LogOut, ChevronRight, ChevronDown, Hash, Calendar, MapPin, Loader2, UserCircle, X, Eye, EyeOff, Lock, User, AlertCircle, Info, Shield, CheckCircle2, MonitorOff, Send, Check, Moon, Sun } from 'lucide-react';
 import { UserRole } from '../types';
 import { api } from '../services/api';
 
@@ -14,6 +14,34 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
   const [step, setStep] = useState<'auth' | 'select' | 'create'>(store.user ? 'select' : 'auth');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [isAwaitingVerification, setIsAwaitingVerification] = useState(false);
+
+  // Financial Year Generator (Current, Past 6 Years, Future 4 Years)
+  const fyOptions = useMemo(() => {
+    const now = new Date();
+    // Indian Financial Year: April 1 to March 31
+    const currentStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const formatFY = (startYear: number) => `${startYear}-${String(startYear + 1).slice(-2)}`;
+
+    const currentFY = formatFY(currentStartYear);
+
+    const current = [
+      { value: currentFY, label: `FY ${currentFY} (Current Live Year)` }
+    ];
+
+    const past = [1, 2, 3, 4, 5, 6].map(offset => {
+      const fy = formatFY(currentStartYear - offset);
+      return { value: fy, label: `FY ${fy} (Past / Audited)` };
+    });
+
+    const future = [1, 2, 3, 4].map(offset => {
+      const fy = formatFY(currentStartYear + offset);
+      return { value: fy, label: `FY ${fy} (Future Planning)` };
+    });
+
+    return { current, past, future, defaultFY: currentFY };
+  }, []);
+
+  const [fyCategory, setFyCategory] = useState<'all' | 'current' | 'past' | 'future'>('all');
   const [newCompany, setNewCompany] = useState({ name: '', gstin: '', fy: '2024-25', address: '' });
   const [loading, setLoading] = useState(false);
 
@@ -302,22 +330,33 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
 
   if (step === 'select') {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-6 font-inter">
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950 p-6 font-inter transition-colors duration-200">
         <div className="max-w-4xl w-full">
           <div className="flex items-center justify-between mb-12">
             <div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight">Business Selection</h1>
-              <p className="text-slate-500 mt-2 font-medium flex items-center gap-2">
-                User: <span className="text-blue-600 font-bold">{store.user?.name}</span>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[10px] font-black uppercase tracking-widest">{store.user?.role}</span>
+              <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">Business Selection</h1>
+              <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium flex items-center gap-2">
+                User: <span className="text-blue-600 dark:text-blue-400 font-bold">{store.user?.name}</span>
+                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded text-[10px] font-black uppercase tracking-widest">{store.user?.role}</span>
               </p>
             </div>
-            <button 
-              onClick={() => store.logout()}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-rose-500 font-bold transition-all shadow-sm"
-            >
-              <LogOut size={18} /> Sign Out
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                type="button"
+                onClick={() => store.toggleTheme()} 
+                className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-600 dark:text-amber-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
+                title={store.theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
+                aria-label="Toggle Theme"
+              >
+                {store.theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+              </button>
+              <button 
+                onClick={() => store.logout()}
+                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 hover:text-rose-500 font-bold transition-all shadow-sm"
+              >
+                <LogOut size={18} /> Sign Out
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -325,17 +364,17 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
               <button 
                 key={c.id}
                 onClick={() => store.selectCompany(c.id)}
-                className="bg-white p-8 rounded-[2.5rem] border border-slate-100 text-left hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-500/10 transition-all group relative overflow-hidden"
+                className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 text-left hover:border-blue-500 hover:shadow-2xl hover:shadow-blue-500/10 transition-all group relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
                    <Building2 size={120} />
                 </div>
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <Building2 size={32} className="text-slate-300 group-hover:text-white" />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 mb-2 leading-tight">{c.name}</h3>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 leading-tight">{c.name}</h3>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8 font-mono">{c.gstin}</p>
-                <div className="flex items-center text-blue-600 font-black text-xs uppercase tracking-widest">
+                <div className="flex items-center text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-widest">
                   Initialize <ChevronRight size={16} className="ml-1 group-hover:translate-x-2 transition-transform duration-300" />
                 </div>
               </button>
@@ -344,13 +383,13 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
             {(store.user?.role === 'Admin' || store.user?.role === 'Accountant') && (
               <button 
                 onClick={() => setStep('create')}
-                className="p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 text-left hover:border-blue-300 hover:bg-blue-50 transition-all flex flex-col items-center justify-center gap-6 group min-h-[300px]"
+                className="p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 dark:border-slate-800 text-left hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-slate-900/50 transition-all flex flex-col items-center justify-center gap-6 group min-h-[300px]"
               >
-                <div className="w-20 h-20 bg-white border-2 border-slate-100 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-xl group-hover:shadow-blue-200">
+                <div className="w-20 h-20 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-xl group-hover:shadow-blue-200">
                   <Plus className="text-slate-300 group-hover:text-blue-500 transition-colors" size={40} />
                 </div>
                 <div className="text-center">
-                  <span className="block text-xl font-black text-slate-800">New Entity</span>
+                  <span className="block text-xl font-black text-slate-800 dark:text-white">New Entity</span>
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 block">Registration Hub</span>
                 </div>
               </button>
@@ -362,25 +401,36 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 p-6 font-inter">
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-100 dark:bg-slate-950 p-6 font-inter transition-colors duration-200">
       <div className="max-w-2xl w-full animate-in zoom-in-95 duration-500">
-        <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
           <div className="bg-slate-900 p-12 text-white flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-black tracking-tight">Company Setup</h2>
               <p className="text-slate-400 mt-2 font-medium">Configure your legal and financial Master Data</p>
             </div>
-            <button 
-              onClick={() => setStep('select')}
-              className="w-14 h-14 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 transition-all group"
-            >
-              <X size={24} className="group-hover:rotate-90 transition-transform" />
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                type="button"
+                onClick={() => store.toggleTheme()} 
+                className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 transition-all text-amber-400"
+                title={store.theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
+                aria-label="Toggle Theme"
+              >
+                {store.theme === 'light' ? <Moon size={20} className="text-white" /> : <Sun size={20} className="text-amber-400" />}
+              </button>
+              <button 
+                onClick={() => setStep('select')}
+                className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 transition-all group"
+              >
+                <X size={22} className="group-hover:rotate-90 transition-transform" />
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleCreateCompany} className="p-12 space-y-8">
             {error && (
-              <div className="p-6 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-sm font-bold animate-in slide-in-from-top-2">
+              <div className="p-6 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/40 rounded-2xl text-rose-600 dark:text-rose-400 text-sm font-bold animate-in slide-in-from-top-2">
                 <div className="flex items-center gap-3 mb-3">
                   <AlertCircle size={20} />
                   <p className="font-black">Critical Setup Error</p>
@@ -396,7 +446,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                   <input 
                     required 
                     placeholder="e.g. Prism Global Solutions Pvt Ltd"
-                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-800 placeholder-slate-300"
+                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-800 dark:text-white placeholder-slate-300 dark:placeholder-slate-600"
                     value={newCompany.name}
                     onChange={e => setNewCompany({ ...newCompany, name: e.target.value })}
                   />
@@ -409,7 +459,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                   <input 
                     required 
                     placeholder="27AAACP1234A1Z5"
-                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm font-bold uppercase placeholder-slate-300"
+                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm font-bold uppercase placeholder-slate-300 dark:placeholder-slate-600 dark:text-white"
                     value={newCompany.gstin}
                     onChange={e => setNewCompany({ ...newCompany, gstin: e.target.value })}
                   />
@@ -417,15 +467,77 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Accounting Period</label>
+                <div className="flex items-center justify-between mb-3 ml-1">
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                    Accounting Period
+                  </label>
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-[9px] font-black uppercase tracking-wider">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFyCategory('current');
+                        setNewCompany(prev => ({ ...prev, fy: fyOptions.current[0].value }));
+                      }}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${fyCategory === 'current' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                    >
+                      Current
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFyCategory('past');
+                        setNewCompany(prev => ({ ...prev, fy: fyOptions.past[0].value }));
+                      }}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${fyCategory === 'past' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                    >
+                      Past
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFyCategory('future');
+                        setNewCompany(prev => ({ ...prev, fy: fyOptions.future[0].value }));
+                      }}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${fyCategory === 'future' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                    >
+                      Future
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFyCategory('all')}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${fyCategory === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                    >
+                      All
+                    </button>
+                  </div>
+                </div>
                 <div className="relative">
                   <select 
-                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold appearance-none text-slate-800"
+                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold appearance-none text-slate-800 dark:text-white"
                     value={newCompany.fy}
                     onChange={e => setNewCompany({ ...newCompany, fy: e.target.value })}
                   >
-                    <option value="2024-25">FY 2024-25 (Live)</option>
-                    <option value="2023-24">FY 2023-24 (Audited)</option>
+                    {(fyCategory === 'all' || fyCategory === 'current') && (
+                      <optgroup label="── Current Year (Active / Live) ──">
+                        {fyOptions.current.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {(fyCategory === 'all' || fyCategory === 'past') && (
+                      <optgroup label="── Past Years (Audit & Records) ──">
+                        {fyOptions.past.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {(fyCategory === 'all' || fyCategory === 'future') && (
+                      <optgroup label="── Future Years (Forecast & Budgets) ──">
+                        {fyOptions.future.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                   <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
@@ -437,7 +549,7 @@ const Auth: React.FC<{ store: any }> = ({ store }) => {
                   <textarea 
                     rows={3}
                     placeholder="Headquarters, 5th Floor, Corporate Park, City..."
-                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-800 placeholder-slate-300 resize-none"
+                    className="w-full px-6 py-5 rounded-[1.5rem] bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-800 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 resize-none"
                     value={newCompany.address}
                     onChange={e => setNewCompany({ ...newCompany, address: e.target.value })}
                   />

@@ -186,7 +186,7 @@ const App: FC = () => {
             <NavGroup label="Operations">
               <NavItem active={currentView === 'billing'} onClick={() => setCurrentView('billing')} icon={<Receipt size={18} />} label="Sales Invoicing" />
               <NavItem active={currentView === 'purchases'} onClick={() => setCurrentView('purchases')} icon={<ShoppingCart size={18} />} label="Purchase Bills" />
-              <NavItem active={currentView === 'returns'} onClick={() => setCurrentView('returns'} icon={<RotateCcw size={18} />} label="Returns" />
+              <NavItem active={currentView === 'returns'} onClick={() => setCurrentView('returns')} icon={<RotateCcw size={18} />} label="Returns" />
             </NavGroup>
             <NavGroup label="Compliance">
               <NavItem active={currentView === 'tax-center'} onClick={() => setCurrentView('tax-center')} icon={<Scale size={18} />} label="Tax Center" />
@@ -219,6 +219,12 @@ const App: FC = () => {
                     {store.theme === 'light' ? <><Moon size={14} className="text-blue-400" /> Dark Mode</> : <><Sun size={14} className="text-amber-400" /> Light Mode</>}
                   </button>
                   <div className="h-px bg-slate-700 my-1 mx-2 opacity-50"></div>
+                  <button 
+                    onClick={() => store.selectCompany('')} 
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-slate-700/50 rounded-lg mb-1 transition-colors"
+                  >
+                    <Building2 size={14} className="text-blue-400" /> Switch / Add Entity
+                  </button>
                   <button onClick={() => store.logout()} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg"><LogOut size={14} /> Logout</button>
                 </div>
               )}
@@ -230,10 +236,15 @@ const App: FC = () => {
           <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 z-30 shrink-0 shadow-sm no-print">
             <div className="flex items-center gap-3 md:gap-4">
               <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><Menu size={24} /></button>
-              <div className="hidden sm:flex items-center gap-2 text-slate-800 dark:text-white font-bold">
-                <Building2 size={18} className="text-blue-500" />
-                <span className="truncate max-w-[100px] md:max-w-none">{store.company.name}</span>
-              </div>
+              <button 
+                onClick={() => store.selectCompany('')} 
+                className="hidden sm:flex items-center gap-2 text-slate-800 dark:text-white font-bold hover:bg-slate-100 dark:hover:bg-slate-800 px-3 py-1.5 rounded-xl transition-all group"
+                title="Switch business entity or register a new company"
+              >
+                <Building2 size={18} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                <span className="truncate max-w-[120px] md:max-w-none">{store.company.name}</span>
+                <span className="text-[9px] font-black uppercase text-blue-600 bg-blue-50 dark:bg-blue-900/40 dark:text-blue-400 px-2 py-0.5 rounded-md ml-1 group-hover:bg-blue-600 group-hover:text-white transition-all">Switch</span>
+              </button>
               
               <div className="relative">
                 <button onClick={() => setShowQuickActions(!showQuickActions)} className="p-2 md:px-3 md:py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1">
@@ -264,6 +275,25 @@ const App: FC = () => {
                 <span className="hidden md:inline font-bold ml-2 mr-6 truncate text-slate-400 dark:text-slate-500">Search (⌘K)</span>
               </button>
               
+              <button 
+                onClick={() => store.toggleTheme()} 
+                className="p-2 md:px-3 md:py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"
+                title={store.theme === 'light' ? "Switch to Dark Mode" : "Switch to Light Mode"}
+                aria-label="Toggle Light/Dark Theme"
+              >
+                {store.theme === 'light' ? (
+                  <>
+                    <Moon size={15} className="text-slate-700" />
+                    <span className="hidden sm:inline text-slate-600 font-bold text-[11px]">Dark</span>
+                  </>
+                ) : (
+                  <>
+                    <Sun size={15} className="text-amber-400" />
+                    <span className="hidden sm:inline text-amber-300 font-bold text-[11px]">Light</span>
+                  </>
+                )}
+              </button>
+
               <div className="hidden md:flex items-center gap-4 border-l pl-4 border-slate-200 dark:border-slate-800">
                  {store.isSyncing && <RefreshCw className="animate-spin text-blue-500" size={16} />}
               </div>

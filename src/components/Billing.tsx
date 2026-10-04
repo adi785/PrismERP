@@ -116,7 +116,7 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
         <>
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
             <div className="flex items-center gap-6">
-              <div className="p-4 md:p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><FileText size={28} md:size={32}/></div>
+              <div className="p-4 md:p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><FileText size={28} className="w-7 h-7 md:w-8 md:h-8" /></div>
               <div>
                 <h2 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Sales Invoicing Suite</h2>
                 <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Create Customer Bill</p>

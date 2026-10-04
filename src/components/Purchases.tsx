@@ -222,7 +222,7 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
         <div className="space-y-6 md:space-y-10">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex items-center gap-6">
-              <div className="p-4 md:p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><ShoppingCart size={28} md:size={32}/></div>
+              <div className="p-4 md:p-5 bg-blue-600 text-white rounded-[2rem] shadow-xl"><ShoppingCart size={28} className="w-7 h-7 md:w-8 md:h-8" /></div>
               <div>
                 <h2 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Inward Purchase Bill</h2>
                 <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">Audit-Ready Procurement Hub</p>

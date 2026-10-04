@@ -23,7 +23,13 @@ export const useERPStore = () => {
 
   useEffect(() => {
     localStorage.setItem('prism_erp_theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
   }, [theme]);
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -81,7 +87,15 @@ export const useERPStore = () => {
     signup: async (e: string, p: string, n: string, r: UserRole) => { const u = await api.signup(e, p, n, r); setUser(u); return refreshData(u); },
     logout: api.logout,
     createCompany: async (n: string, g: string, f: string, a: string) => { if (!user) return; const c = await api.createCompany({ name: n, gstin: g, financialYear: f, address: a, ownerId: user.id }); await api.selectCompany(c.id); setCompany(c); return refreshData(user); },
-    selectCompany: async (id: string) => { await api.selectCompany(id); return refreshData(user); },
+    selectCompany: async (id: string) => { 
+      await api.selectCompany(id); 
+      if (!id) {
+        setCompany(null);
+        localStorage.removeItem('prism_erp_active_company_cache');
+        return;
+      }
+      return refreshData(user); 
+    },
     addLedger: async (l: any) => { const s = await api.addLedger(l); setLedgers(prev => [...prev, s]); },
     addStockItem: async (i: any) => { const s = await api.addStockItem(i); setStockItems(prev => [...prev, s]); },
     updateStockItem: async (id: string, u: any) => { const s = await api.updateStockItem(id, u); setStockItems(prev => prev.map(item => item.id === id ? s : item)); },
