@@ -284,7 +284,7 @@ const ProductReturns: React.FC<{ store: any, onComplete: () => void }> = ({ stor
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
             <div className="flex items-center gap-6">
               <div className="p-4 md:p-5 bg-rose-600 text-white rounded-[2rem] shadow-xl">
-                <RotateCcw size={28} md:size={40} />
+                <RotateCcw size={28} className="w-7 h-7 md:w-10 md:h-10" />
               </div>
               <div>
                 <h2 className="text-2xl md:text-4xl font-black text-slate-950 tracking-tight">Returns & Credit Notes</h2>
@@ -354,10 +354,10 @@ const ProductReturns: React.FC<{ store: any, onComplete: () => void }> = ({ stor
               <div className="bg-white rounded-[3.5rem] p-6 md:p-12 border border-slate-100 shadow-sm">
                 <div className="flex justify-between items-center mb-8 md:mb-12">
                   <div className="flex items-center gap-3 md:gap-5">
-                    <div className="p-3 md:p-4 bg-slate-900 text-white rounded-3xl"><Package size={20} md:size={28} /></div>
+                    <div className="p-3 md:p-4 bg-slate-900 text-white rounded-3xl"><Package size={20} className="w-5 h-5 md:w-7 md:h-7" /></div>
                     <h3 className="text-xs md:text-sm font-black text-slate-950 uppercase tracking-[0.3em]">Items to Return</h3>
                   </div>
-                  <button onClick={addItem} className="px-6 md:px-10 py-3 md:py-5 bg-blue-600 text-white rounded-[1.5rem] text-xs font-black uppercase tracking-widest hover:bg-blue-700 shadow-2xl shadow-blue-600/30 flex items-center gap-3 transition-all"><Plus size={16} md:size={24} /> Add SKU</button>
+                  <button onClick={addItem} className="px-6 md:px-10 py-3 md:py-5 bg-blue-600 text-white rounded-[1.5rem] text-xs font-black uppercase tracking-widest hover:bg-blue-700 shadow-2xl shadow-blue-600/30 flex items-center gap-3 transition-all"><Plus size={16} className="w-4 h-4 md:w-6 md:h-6" /> Add SKU</button>
                 </div>
 
                 <div className="space-y-6 md:space-y-8">

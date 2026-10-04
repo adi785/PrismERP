@@ -1,6 +1,6 @@
 
 import { Ledger, StockItem, Voucher, Company, User, UserRole, TrackingDetail, TrackingType } from '../types';
-import { INITIAL_LEDGERS, INITIAL_ITEMS } from '../constants';
+import { INITIAL_LEDGERS, INITIAL_ITEMS, INITIAL_COMPANY } from '../constants';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 class BackendAPI {
@@ -72,19 +72,38 @@ class BackendAPI {
 
   async logout(): Promise<void> {
     if (!this.useLocalStorageFallback && supabase) await supabase.auth.signOut();
-    localStorage.clear();
+    localStorage.removeItem('prism_erp_session');
+    localStorage.removeItem('prism_erp_active_company_cache');
+    localStorage.removeItem('prism_erp_company_id');
   }
 
   // --- Company Methods ---
   async getCompanies(userId: string): Promise<Company[]> {
-    if (this.useLocalStorageFallback) return [];
+    if (this.useLocalStorageFallback) {
+      const local = await this.getFromLocal<Company>('companies');
+      if (local.length === 0) {
+        await this.saveToLocal('companies', [INITIAL_COMPANY]);
+        return [INITIAL_COMPANY];
+      }
+      return local;
+    }
     const { data, error } = await supabase!.from('companies').select('*').eq('owner_id', userId);
     if (error) this.handleError(error);
     return (data || []).map(c => this.mapCompany(c));
   }
 
   async createCompany(company: Omit<Company, 'id'>): Promise<Company> {
-    if (this.useLocalStorageFallback) throw new Error("Local creation disabled");
+    if (this.useLocalStorageFallback) {
+      const companies = await this.getFromLocal<Company>('companies');
+      const newCompany: Company = {
+        ...company,
+        id: `local-c-${Date.now()}`
+      };
+      companies.push(newCompany);
+      await this.saveToLocal('companies', companies);
+      await this.selectCompany(newCompany.id);
+      return newCompany;
+    }
     const { data, error } = await supabase!.from('companies').insert([{ name: company.name, gstin: company.gstin, financial_year: company.financialYear, address: company.address }]).select().single();
     if (error) this.handleError(error);
     return this.mapCompany(data);
@@ -96,7 +115,12 @@ class BackendAPI {
 
   async getSelectedCompany(): Promise<Company | null> {
     const cid = localStorage.getItem('prism_erp_company_id');
-    if (!cid || this.useLocalStorageFallback) return null;
+    if (!cid) return null;
+    if (this.useLocalStorageFallback) {
+      const companies = await this.getFromLocal<Company>('companies');
+      const found = companies.find(c => c.id === cid);
+      return found || null;
+    }
     const { data, error } = await supabase!.from('companies').select('*').eq('id', cid).maybeSingle();
     return data ? this.mapCompany(data) : null;
   }

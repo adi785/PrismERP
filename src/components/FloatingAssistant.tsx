@@ -15,7 +15,7 @@ const FloatingAssistant: React.FC<{ store: any }> = ({ store }) => {
 
   const checkKeyState = async () => {
     const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY);
-    const hasSelectedKey = await window.aistudio?.hasSelectedApiKey();
+    const hasSelectedKey = await (window as any).aistudio?.hasSelectedApiKey();
     setNeedsKey(!apiKey && !hasSelectedKey);
   };
 
@@ -70,7 +70,7 @@ const FloatingAssistant: React.FC<{ store: any }> = ({ store }) => {
   };
 
   const handleSelectKey = async () => {
-    await window.aistudio?.openSelectKey();
+    await (window as any).aistudio?.openSelectKey();
     setNeedsKey(false);
   };
 
