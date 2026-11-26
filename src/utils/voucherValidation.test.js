@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildSalesVoucherEntries, validateVoucherEntries } from './voucherValidation.js';
+import { buildSalesVoucherEntries, splitTaxAmount, validateVoucherEntries } from './voucherValidation.js';
 
 test('accepts balanced entries with decimal currency amounts', () => {
   assert.doesNotThrow(() => validateVoucherEntries([
@@ -125,4 +125,12 @@ test('omits zero-value tax and round-off rows', () => {
     { ledgerId: 'l-sales', debit: 0, credit: 100 }
   ]);
   assert.doesNotThrow(() => validateVoucherEntries(entries));
+});
+
+test('splits odd paise tax amounts without losing or creating a paise', () => {
+  for (let cents = 1; cents <= 1000; cents += 1) {
+    const { cgst, sgst } = splitTaxAmount(cents / 100);
+    assert.equal(Math.round((cgst + sgst) * 100), cents);
+    assert.ok(Math.abs(cgst - sgst) <= 0.01);
+  }
 });
