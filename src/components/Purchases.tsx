@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Save, Plus, Trash2, Printer, CheckCircle2, ChevronDown, FileText, Loader2, Search, Package, Building2, Calculator, ShoppingCart, Camera, Sparkles, AlertCircle, Calendar, Hash } from 'lucide-react';
 import { StockItem, Ledger, InventoryMovement } from '../types';
 import { triggerPrint, numberToWords } from '../utils/exportUtils';
+import { splitTaxAmount } from '../utils/voucherValidation.js';
 import { GoogleGenAI } from "@google/genai";
 
 interface PurchaseLineItem {
@@ -184,8 +185,7 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
         }
       }
 
-      const cgst = Number((totals.gst / 2).toFixed(2));
-      const sgst = Number((totals.gst - cgst).toFixed(2));
+      const { cgst, sgst } = splitTaxAmount(totals.gst);
 
       await store.addVoucher({
         number: `PUR-${vendor.billNo}`, 
