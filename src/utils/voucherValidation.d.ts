@@ -11,5 +11,6 @@ export interface SalesVoucherEntryOptions {
   roundOffAmount?: number;
 }
 
+export function splitTaxAmount(totalAmount: number): { cgst: number; sgst: number };
 export function validateVoucherEntries(entries: readonly VoucherEntry[]): void;
 export function buildSalesVoucherEntries(options: SalesVoucherEntryOptions): VoucherEntry[];
