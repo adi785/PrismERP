@@ -2,6 +2,7 @@
 import { Ledger, StockItem, Voucher, Company, User, UserRole, TrackingDetail, TrackingType } from '../types';
 import { INITIAL_LEDGERS, INITIAL_ITEMS, INITIAL_COMPANY } from '../constants';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { validateVoucherEntries } from '../utils/voucherValidation.js';
 
 class BackendAPI {
   private useLocalStorageFallback = !isSupabaseConfigured;
@@ -247,6 +248,8 @@ class BackendAPI {
   }
 
   async recordVoucher(voucher: Omit<Voucher, 'id'>): Promise<Voucher> {
+    // Enforce double-entry integrity at the persistence boundary, not only in UI forms.
+    validateVoucherEntries(voucher.entries);
     if (this.useLocalStorageFallback) {
       const newVoucher: Voucher = { ...voucher, id: `local-v-${Date.now()}` };
       const vouchers = await this.getVouchers();
