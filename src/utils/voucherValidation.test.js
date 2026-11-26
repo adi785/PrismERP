@@ -131,6 +131,6 @@ test('splits odd paise tax amounts without losing or creating a paise', () => {
   for (let cents = 1; cents <= 1000; cents += 1) {
     const { cgst, sgst } = splitTaxAmount(cents / 100);
     assert.equal(Math.round((cgst + sgst) * 100), cents);
-    assert.ok(Math.abs(cgst - sgst) <= 0.01);
+    assert.ok(Math.round(Math.abs(cgst - sgst) * 100) <= 1);
   }
 });
