@@ -49,6 +49,19 @@ export function validateVoucherEntries(entries) {
 }
 
 /**
+ * Split a GST amount into two paise-accurate components.
+ * The first component receives any odd paise; the second is the exact remainder.
+ */
+export function splitTaxAmount(totalAmount) {
+  const totalCents = toCents(totalAmount, 'Tax amount');
+  const firstHalfCents = Math.round(totalCents / 2);
+  return {
+    cgst: firstHalfCents / 100,
+    sgst: (totalCents - firstHalfCents) / 100
+  };
+}
+
+/**
  * Build the ledger side of a sales invoice, including GST and rupee rounding.
  * Positive round-off is credited; negative round-off is debited.
  */
