@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Trash2, Printer, Save, CheckCircle2, Package, User, Calculator, Search, ChevronDown, Loader2, FileText, AlertCircle, ArrowLeft, Percent, IndianRupee, CreditCard, Wallet, FileCheck, ShieldCheck, Building, Landmark, Scale, Boxes, Hash, Check, X } from 'lucide-react';
 import { StockItem, Ledger, TrackingDetail, InventoryMovement } from '../types';
 import { triggerPrint, numberToWords } from '../utils/exportUtils';
+import { buildSalesVoucherEntries } from '../utils/voucherValidation.js';
 
 interface BillingItem {
   id: string; itemId: string; name: string; sku: string; hsn: string; quantity: number; rate: number; discountType: 'percentage' | 'fixed'; discountValue: number; discountAmount: number; cgstRate: number; sgstRate: number; igstRate: number; cgstAmount: number; sgstAmount: number; igstAmount: number; amount: number; totalWithTax: number; availableStock: number; unit: string;
@@ -92,11 +93,20 @@ const Billing: React.FC<{ store: any, onComplete: () => void }> = ({ store, onCo
 
       await store.addVoucher({
         number: invoiceNo, date, type: 'Sales', narration: `Outward Invoice #${invoiceNo} to ${party.name}`, totalAmount: totals.total, gstTotal: totals.gstTotal,
-        entries: [{ ledgerId: paymentMode === 'Cash' ? 'l-cash' : party.ledgerId || 'l-cash', debit: totals.total, credit: 0 }, { ledgerId: 'l-sales', debit: 0, credit: totals.taxable }],
+        entries: buildSalesVoucherEntries({
+          settlementLedgerId: paymentMode === 'Cash' ? 'l-cash' : party.ledgerId || 'l-cash',
+          taxableAmount: totals.taxable,
+          totalAmount: totals.total,
+          taxType,
+          cgstAmount: items.reduce((sum, item) => sum + item.cgstAmount, 0),
+          sgstAmount: items.reduce((sum, item) => sum + item.sgstAmount, 0),
+          igstAmount: items.reduce((sum, item) => sum + item.igstAmount, 0),
+          roundOffAmount: totals.roundOff
+        }),
         inventory: finalInventory
       });
       setIsSaved(true);
-    } catch { alert("Failed to authorize invoice"); } finally { setIsSaving(false); }
+    } catch (err: unknown) { alert(err instanceof Error ? err.message : "Failed to authorize invoice"); } finally { setIsSaving(false); }
   };
 
   const openTrackingSelection = (item: BillingItem) => setTrackingSelectorItem(item);
