@@ -184,6 +184,9 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
         }
       }
 
+      const cgst = Number((totals.gst / 2).toFixed(2));
+      const sgst = Number((totals.gst - cgst).toFixed(2));
+
       await store.addVoucher({
         number: `PUR-${vendor.billNo}`, 
         date, 
@@ -193,8 +196,8 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
         gstTotal: totals.gst,
         entries: [
           { ledgerId: 'l-purchase', debit: totals.taxable, credit: 0 }, 
-          { ledgerId: 'l-cgst', debit: totals.gst/2, credit: 0 }, 
-          { ledgerId: 'l-sgst', debit: totals.gst/2, credit: 0 }, 
+          { ledgerId: 'l-cgst', debit: cgst, credit: 0 }, 
+          { ledgerId: 'l-sgst', debit: sgst, credit: 0 }, 
           { ledgerId: vendor.ledgerId || 'l-cash', debit: 0, credit: totals.grand }
         ],
         inventory: finalInventory
