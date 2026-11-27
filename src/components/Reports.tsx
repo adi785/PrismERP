@@ -2,7 +2,6 @@
 import React, { useState, useMemo } from 'react';
 import { TrendingUp, TrendingDown, ShieldCheck, FileSearch, Printer, Lock, Scale } from 'lucide-react';
 import { Ledger } from '../types';
-import MarkdownRenderer from './MarkdownRenderer';
 import { triggerPrint } from '../utils/exportUtils';
 
 const Reports: React.FC<{ store: any }> = ({ store }) => {
