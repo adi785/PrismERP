@@ -1,6 +1,5 @@
 <div align="center">
   <img width="1200" height="475" title="PrismERP Banner"/>
-  
   <h1 align="center">PrismERP — Advanced Business Suite</h1>
   <p align="center">A modern, AI-powered ERP for accounting, inventory, and business analytics.</p>
   <p align="center">
@@ -11,185 +10,92 @@
 
 ---
 
-## ✨ Why PrismERP?
+## Why PrismERP?
 
-PrismERP is built to make business finance and inventory management beautiful, fast, and intelligent. It combines a clean React + TypeScript frontend with a Supabase backend and AI-powered analytics.
+PrismERP combines a React + TypeScript frontend with a Supabase backend and AI-powered analytics.
 
 - Friendly UI and keyboard-first workflows
-- Real-time inventory & ledger syncing
+- Real-time inventory and ledger syncing
 - AI-driven financial insights and anomaly detection
 - Role-based access control for teams
+- Optional n8n automation hooks for operational workflows
 
----
+## Highlights
 
-## 🚀 Quick demo
-
-Try the live demo: https://prism-erp.vercel.app
-
----
-
-## 🧭 Highlights
-
-- Financial Management: full chart of accounts, multi-currency, trial balance, P&L
-- Inventory Management: SKU, batch/serial tracking, FIFO/LIFO valuations
+- Financial management: chart of accounts, multi-currency, trial balance, P&L
+- Inventory: SKU, batch/serial tracking, FIFO/LIFO valuations
 - Voucher-based entries: invoice, purchase, payment, receipt, journal
-- AI Analytics: Gemini-powered forecasting and anomaly detection
-- Secure by design: Supabase Auth + role-based access + audit logs
+- AI analytics: Gemini-powered forecasting and anomaly detection
+- Automation: authenticated Supabase-to-n8n event relay (see [n8n integration guide](docs/n8n/README.md))
+- Secure by design: Supabase Auth and row-level access policies
 
----
-
-## 🛠️ Tech Stack
+## Tech stack
 
 - Frontend: React + TypeScript + Vite
-- State: Zustand
-- Styling: Tailwind CSS
 - Backend: Supabase (Postgres + Auth + Edge Functions)
-- AI: Google Gemini via authenticated Supabase Edge Function (server-side key)
+- AI: Google Gemini through an authenticated Supabase Edge Function
+- Automation: n8n webhooks through an authenticated Supabase Edge Function
 - Charts: Recharts
 
----
-
-## 🗂️ Project structure
+## Project structure
 
 ```
 PrismERP/
-├── src/             # React app (UI, components, services)
-├── backend/supabase # Supabase config & Edge Functions
-├── screenshots/     # App screenshots for docs & marketing
-├── README.md        # Project README
-└── ARCHITECTURE.md  # Deep-dive architecture & design
+├── src/             # React app (UI, services, state)
+├── backend/supabase # Supabase config and Edge Functions
+├── docs/n8n/        # n8n setup guide and importable starter workflow
+└── screenshots/     # App screenshots
 ```
 
----
+## Architecture
 
-## 🧩 Architecture (At a glance)
+React frontend ⇄ Supabase Auth/Postgres/Edge Functions ⇄ Gemini
+                                             └──────⇄ n8n (optional)
 
-Frontend (React) ⇄ REST / Supabase ⇄ Supabase/Postgres ⇄ Google Gemini (AI)
+## API examples
 
-Key pieces:
-- App shell, routing, and components (Dashboard, Ledgers, Stock, Vouchers)
-- Global store (Zustand) for session & offline sync
-- Supabase for auth, realtime, and REST
-- Edge functions for AI integrations and heavy tasks
-
----
-
-## 🗃️ Database (core tables)
-
-- companies — company metadata and GSTIN
-- users — app users, roles and company mapping
-- ledgers — chart of accounts and balances
-- vouchers & voucher_entries — transactions and line items
-- stock_items, inventory_movements, batch_tracking — inventory & tracking
-
-(The deployed Supabase schema is not yet versioned as SQL migrations in this repository; see backend/README.md.)
-
----
-
-## 🔌 API (examples)
-
-Authentication
 - POST /auth/v1/signup
 - POST /auth/v1/signin
-
-Companies
 - GET /rest/v1/companies
-- POST /rest/v1/companies
-
-Ledgers & Vouchers
 - GET /rest/v1/ledgers?company_id={id}
 - POST /rest/v1/vouchers
-
-Inventory
-- GET /rest/v1/stock_items?company_id={id}
 - POST /rest/v1/inventory_movements
+- POST /functions/v1/gemini-proxy (authenticated)
+- POST /functions/v1/n8n-event-relay (authenticated; allowlisted events)
 
-AI Endpoints
-- POST /functions/v1/gemini-proxy (authenticated; action-validated)
+## Local development
 
----
+Prerequisites: Node 18+, npm, and a Supabase project.
 
-## ⚡ Quick start (local)
-
-Prerequisites: Node 18+, npm or yarn, and a Supabase project. Gemini credentials belong only in Supabase Edge Function secrets.
-
-1. Clone
 ```bash
 git clone https://github.com/adi785/PrismERP.git
 cd PrismERP
-```
-
-2. Install
-```bash
 npm install
-```
-
-3. Configure Supabase
-
-The current Supabase project URL and public anon key are configured in `src/services/supabase.ts`. Replace them with your own project's values when self-hosting. Never put a service-role key or Gemini API key in frontend code or Vite environment variables.
-
-4. Run
-```bash
 npm run dev
-# open http://localhost:3000
 ```
 
-5. Build for production
-```bash
-npm run build
-npm run preview
-```
+Configure your Supabase project credentials for self-hosting. Never put a
+service-role key, Gemini API key, or n8n webhook secret in frontend code or
+Vite environment variables. See [backend/README.md](backend/README.md) and
+[docs/n8n/README.md](docs/n8n/README.md) for deployment instructions.
 
----
+## Secure AI setup
 
-## ✅ Development notes
+The Gemini key is read only by the Edge Function at runtime. Configure
+`GEMINI_API_KEY` using Supabase Function Secrets and deploy
+`gemini-proxy`. Financial summaries and invoice images submitted to AI
+features are sent to Google Gemini for processing; enable these features only
+when your organization permits that data transfer.
 
-- SQL migrations are not currently tracked under backend/supabase/migrations/
-- Use Supabase dashboard to inspect tables & policies
-- Edge functions live in backend/supabase/functions/
+## Contributing
 
----
+1. Fork the repo.
+2. Create a feature branch.
+3. Open a PR with a clear description.
+4. Add tests for new features and follow the existing code style.
 
-## 🔐 Secure AI setup
+## License
 
-AI Analyst, Prism AI chat, and purchase-invoice OCR call the authenticated `gemini-proxy` Supabase Edge Function. The Gemini key is read only by the function at runtime.
-
-From the repository root:
-
-```bash
-cd backend
-supabase login
-supabase link --project-ref <your-project-ref>
-supabase secrets set GEMINI_API_KEY=<your-gemini-api-key>
-supabase functions deploy gemini-proxy
-```
-
-The function requires a signed-in Supabase user and keeps JWT verification enabled. Financial summaries and invoice images submitted to AI features are sent to Google Gemini for processing; enable these features only when your organization permits that data transfer. Its default browser-origin allowlist includes the production app and local Vite ports. If your deployment uses another origin, set `AI_ALLOWED_ORIGINS` as a comma-separated Supabase function secret.
-
-If a Gemini key was previously injected into a Vite build, rotate that key in Google AI Studio before configuring the replacement as a Supabase secret. Never use `VITE_GEMINI_API_KEY` or define a Gemini key in `vite.config.ts`.
-
-## 🤝 Contributing
-
-Contributions, issues and feature requests are welcome!
-
-1. Fork the repo
-2. Create a branch (feature/xxx)
-3. Open a PR with a clear description
-
-Please add tests for new features and follow the existing code style.
-
----
-
-## 📸 Screenshots
-
-Add high-quality screenshots to /screenshots for marketing and docs. Recommended: 1920×1080, optimized PNGs.
-
----
-
-## 📄 License
-
-MIT — see LICENSE file.
-
----
+MIT — see LICENSE.
 
 Built with ❤️ using React, TypeScript, Supabase, and AI — PrismERP Team
