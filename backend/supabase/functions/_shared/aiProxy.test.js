@@ -8,7 +8,7 @@ test('health action does not create a provider request', () => {
 
 test('analyst requests use a server-controlled model and bounded prompt', () => {
   const request = buildAIRequest({ action: 'analyst', payload: { query: 'Review working capital', context: 'Revenue: 100; cash: 20' } });
-  assert.equal(request.model, 'gemini-3-pro-preview');
+  assert.equal(request.model, 'gemini-3.8-flash');
   assert.match(request.systemInstruction, /Do not authorize or post transactions/);
   assert.match(request.contents[0].parts[0].text, /Review working capital/);
   assert.equal(request.generationConfig.maxOutputTokens, 4096);
@@ -33,7 +33,7 @@ test('report summaries reject non-finite financial values', () => {
 
 test('invoice extraction accepts supported image MIME types and uses JSON output', () => {
   const request = buildAIRequest({ action: 'invoice-extraction', payload: { imageBase64: 'aGVsbG8=', mimeType: 'image/png', stockItems: [{ name: 'Widget' }] } });
-  assert.equal(request.model, 'gemini-2.5-flash');
+  assert.equal(request.model, 'gemini-3.8-flash');
   assert.equal(request.contents[0].parts[0].inline_data.mime_type, 'image/png');
   assert.equal(request.generationConfig.responseMimeType, 'application/json');
 });
