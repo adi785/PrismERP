@@ -1,6 +1,7 @@
 # Backend
 
-The tracked Supabase backend currently contains the authenticated Gemini proxy. Database migrations and the historical migration sequence described in older documentation are not present in this repository yet; do not apply undocumented schema changes.
+The tracked Supabase backend contains the authenticated Gemini proxy and the
+optional n8n event relay.
 
 ## Tracked structure
 
@@ -11,13 +12,13 @@ backend/
     └── functions/
         ├── _shared/
         │   └── aiProxy.js
-        └── gemini-proxy/
+        ├── gemini-proxy/
+        │   └── index.ts
+        └── n8n-event-relay/
             └── index.ts
 ```
 
 ## Deploy the AI function
-
-Run from this directory:
 
 ```bash
 supabase login
@@ -26,12 +27,27 @@ supabase secrets set GEMINI_API_KEY=<your-gemini-api-key>
 supabase functions deploy gemini-proxy
 ```
 
-`GEMINI_API_KEY` must be stored as a Supabase function secret. It must never be placed in the frontend, a `VITE_` variable, or Vite's `define` configuration.
+Keep `GEMINI_API_KEY` in Supabase Function Secrets. Never put it in frontend
+code, a `VITE_` variable, or Vite's `define` configuration.
 
-The function keeps `verify_jwt = true` and independently verifies the caller's user session with Supabase Auth. It validates supported actions and payload sizes, limits invoice images to JPEG/PNG/WebP and 5 MB in the UI, and does not return raw Gemini provider errors.
+## Deploy the n8n relay
 
-The default CORS allowlist contains `https://prism-erp.vercel.app`, `http://localhost:3000`, and `http://localhost:5173`. Configure `AI_ALLOWED_ORIGINS` as a comma-separated function secret if your app is hosted elsewhere.
+See [the n8n integration guide](../docs/n8n/README.md). Configure
+`N8N_WEBHOOK_URL` and optional `N8N_WEBHOOK_SECRET` as Supabase Function
+Secrets, then deploy:
+
+```bash
+supabase secrets set N8N_WEBHOOK_URL=https://<your-n8n-host>/webhook/<your-path>
+supabase secrets set N8N_WEBHOOK_SECRET=<long-random-shared-secret>
+supabase functions deploy n8n-event-relay
+```
+
+Both functions require valid Supabase user JWTs. Never expose service-role or
+webhook secrets to the browser.
 
 ## Database and RLS status
 
-No SQL migration files are currently tracked under `backend/supabase/migrations`. The existing frontend still depends on the configured Supabase project and its deployed schema/RLS policies. Version and audit those policies before treating the repository as a reproducible production backend.
+No SQL migration files are currently tracked under
+`backend/supabase/migrations`. The frontend still depends on the configured
+Supabase project and its deployed schema/RLS policies. Version and audit those
+policies before treating the repository as a reproducible production backend.
