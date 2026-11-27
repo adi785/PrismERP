@@ -1,2 +1,5 @@
 [functions.gemini-proxy]
 verify_jwt = true
+
+[functions.n8n-event-relay]
+verify_jwt = true
