@@ -98,12 +98,15 @@ Multi-tenant architecture with company-level data isolation and Row-Level Securi
 ```
 
 ### Edge Functions
-```
-/functions/v1/
-├── analyze-financials  - AI analysis
-├── forecast-trends     - Predictions
-└── detect-anomalies    - Anomaly detection
-```
+
+`/functions/v1/gemini-proxy` is the tracked AI gateway for financial analysis, assistant chat, and invoice extraction.
+
+- Requires an authenticated Supabase user JWT (`verify_jwt = true`) and validates the session with Supabase Auth.
+- Reads `GEMINI_API_KEY` only from Supabase function secrets; the key is never injected into the Vite bundle.
+- Applies action-specific input validation, bounded history/context, image MIME/size limits, and fixed server-side system instructions.
+- AI output is advisory. Invoice extraction only pre-fills a draft and must be reviewed before the user saves it.
+
+Database migration files and the previously documented `analyze-financials`, `forecast-trends`, and `detect-anomalies` functions are not currently tracked in this repository.
 
 ---
 
@@ -120,7 +123,7 @@ Multi-tenant architecture with company-level data isolation and Row-Level Securi
 - Role-Based Access Control (RBAC)
 - Row-Level Security (RLS) policies
 - Multi-tenant data isolation
-- API key management
+- Gemini API key stored only as a Supabase Edge Function secret; never bundled by Vite
 
 ### Data Protection
 - AES-256 encryption at rest

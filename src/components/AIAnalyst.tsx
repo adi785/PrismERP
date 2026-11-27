@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { 
   BrainCircuit, 
   Send, 
@@ -15,11 +14,11 @@ import {
   Activity,
   Lightbulb,
   ArrowRight,
-  Key,
   Wallet,
   Scale
 } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
+import { invokeAI } from '../services/ai';
 
 type ConnectionStatus = 'idle' | 'checking' | 'online' | 'error' | 'needs_key';
 
@@ -42,43 +41,18 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
   const runIntegrityCheck = async () => {
     setConnStatus('checking');
     setErrorMsg(null);
-    
-    // @ts-ignore - aistudio is pre-configured in the environment
-    const hasSelectedKey = await window.aistudio?.hasSelectedApiKey();
-
-    if (!process.env.API_KEY && !hasSelectedKey) {
-      setConnStatus('needs_key');
-      return;
-    }
-
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const result = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: 'System check: respond with "ok"',
-        config: { maxOutputTokens: 5, thinkingConfig: { thinkingBudget: 0 } }
-      });
-      if (result.text) setConnStatus('online');
-    } catch (err: any) {
-      if (err.message?.includes("Requested entity was not found")) {
-        setConnStatus('needs_key');
-      } else {
-        setConnStatus('error');
-        setErrorMsg(`Handshake failed: ${err.message || "Network error"}`);
-      }
+      await invokeAI<{ ok: boolean }>('health');
+      setConnStatus('online');
+    } catch {
+      setConnStatus('needs_key');
+      setErrorMsg('Secure AI backend is not configured. Deploy the gemini-proxy Edge Function and set GEMINI_API_KEY in Supabase secrets.');
     }
-  };
-
-  const handleSelectKey = async () => {
-    // @ts-ignore - aistudio is pre-configured in the environment
-    await window.aistudio?.openSelectKey();
-    setConnStatus('checking');
-    runIntegrityCheck();
   };
 
   useEffect(() => {
-    runIntegrityCheck();
-  }, [store.ledgers.length]);
+    void runIntegrityCheck();
+  }, []);
 
   const analyze = async () => {
     if (!query.trim()) return;
@@ -99,7 +73,7 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
       .join(', ');
 
     // 2. Individual Top Ledger Balances
-    const topLedgers = ledgers
+    const topLedgers = [...ledgers]
       .sort((a: any, b: any) => Math.abs(b.currentBalance) - Math.abs(a.currentBalance))
       .slice(0, 12)
       .map((l: any) => `${l.name} (${l.group}): ₹${l.currentBalance.toLocaleString()}`)
@@ -125,22 +99,11 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
     `;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const result = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `FINANCIAL DATA CONTEXT: ${context}\n\nUSER AUDIT QUERY: ${query}`,
-        config: { 
-          systemInstruction: "You are a specialized ERP AI Auditor for the Indian market. You have access to granular ledger groups and stock valuations. Analyze patterns such as Debt-to-Equity, Cash Flow health, and Inventory Turnover using the provided data. ALWAYS use Indian Rupee (INR / ₹). Use the Indian numbering system (Lakhs, Crores). Highlight potential accounting risks or optimization opportunities. Be professional, structured (use Markdown), and data-driven.",
-          thinkingConfig: { thinkingBudget: 32768 }
-        }
-      });
+      const result = await invokeAI<{ text: string }>('analyst', { query, context });
       setResponse(result.text || "Analysis report generated but contains no text.");
-    } catch (err: any) {
-      if (err.message?.includes("Requested entity was not found")) {
-        setConnStatus('needs_key');
-      } else {
-        setErrorMsg(err.message);
-      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('Secure AI service')) setConnStatus('needs_key');
+      setErrorMsg(err instanceof Error ? err.message : 'AI analysis failed.');
     } finally {
       setLoading(false);
     }
@@ -153,25 +116,18 @@ const AIAnalyst: React.FC<{ store: any }> = ({ store }) => {
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <IntegrityTile label="Intelligence" status={connStatus} icon={<BrainCircuit size={16} />} sub={connStatus === 'online' ? 'Gemini 3 Pro' : 'Checking...'} />
+        <IntegrityTile label="Intelligence" status={connStatus} icon={<BrainCircuit size={16} />} sub={connStatus === 'online' ? 'Secure Gemini service' : connStatus === 'checking' ? 'Checking...' : connStatus === 'needs_key' ? 'Backend setup required' : 'Unavailable'} />
         <IntegrityTile label="Data Context" status={store.ledgers.length > 0 ? 'success' : 'warning'} icon={<Database size={16} />} sub={store.ledgers.length > 0 ? 'Granular Sync' : 'No Data'} />
         <IntegrityTile label="Currency" status="online" icon={<Wallet size={16} />} sub="INR (₹) Base" />
       </div>
 
       {connStatus === 'needs_key' && (
-        <div className="bg-amber-50 border-2 border-amber-100 p-10 rounded-[2.5rem] flex items-start gap-8 shadow-xl">
-          <div className="p-5 bg-amber-500 text-white rounded-[1.5rem] shadow-lg"><Key size={32} /></div>
+        <div className="bg-amber-50 border border-amber-200 p-8 rounded-2xl flex items-start gap-5">
+          <div className="p-3 bg-amber-100 text-amber-700 rounded-xl"><ServerCrash size={24} /></div>
           <div className="flex-1">
-            <h4 className="text-xl font-black text-amber-900 uppercase tracking-tight mb-2">AI Activation Required</h4>
-            <p className="text-sm text-amber-700 font-bold mb-8 leading-relaxed">
-              To enable the granular Financial Auditor and high-performance business intelligence in INR, you must select an API key from a paid GCP project.
-            </p>
-            <div className="flex items-center gap-4">
-              <button onClick={handleSelectKey} className="flex items-center gap-3 px-8 py-4 bg-amber-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-700 shadow-xl shadow-amber-600/20 transition-all">
-                Select API Key
-              </button>
-              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] font-black uppercase text-amber-500 underline tracking-widest">Billing Documentation</a>
-            </div>
+            <h4 className="text-base font-bold text-amber-900 mb-2">Secure AI service unavailable</h4>
+            <p className="text-sm text-amber-800 mb-4 leading-relaxed">AI requests run through an authenticated Supabase Edge Function. Deploy gemini-proxy and configure GEMINI_API_KEY as a Supabase function secret. Never add the Gemini key to browser or Vite environment variables.</p>
+            <button onClick={runIntegrityCheck} className="px-5 py-2.5 bg-amber-700 text-white rounded-lg font-semibold text-xs hover:bg-amber-800">Retry connection</button>
           </div>
         </div>
       )}

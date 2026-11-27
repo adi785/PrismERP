@@ -1,35 +1,37 @@
-# Backend Documentation
+# Backend
 
-This directory contains backend configurations and database schemas for PrismERP.
+The tracked Supabase backend currently contains the authenticated Gemini proxy. Database migrations and the historical migration sequence described in older documentation are not present in this repository yet; do not apply undocumented schema changes.
 
-## Structure
+## Tracked structure
 
 ```
 backend/
-├── supabase/
-│   ├── migrations/     - Database migration scripts
-│   ├── functions/      - Edge functions
-│   ├── triggers/       - Database triggers
-│   └── supabase.yml    - Supabase configuration
-└── README.md
+└── supabase/
+    ├── config.toml
+    └── functions/
+        ├── _shared/
+        │   └── aiProxy.js
+        └── gemini-proxy/
+            └── index.ts
 ```
 
-## Setup Instructions
+## Deploy the AI function
 
-1. Create a Supabase project at https://supabase.com
-2. Run migrations in order: `001_create_companies.sql` through `007_create_batch_tracking.sql`
-3. Configure RLS policies
-4. Deploy edge functions
-5. Enable real-time subscriptions
+Run from this directory:
 
-## Database Schema
+```bash
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase secrets set GEMINI_API_KEY=<your-gemini-api-key>
+supabase functions deploy gemini-proxy
+```
 
-See main README.md for detailed database schema documentation.
+`GEMINI_API_KEY` must be stored as a Supabase function secret. It must never be placed in the frontend, a `VITE_` variable, or Vite's `define` configuration.
 
-## API Integration
+The function keeps `verify_jwt = true` and independently verifies the caller's user session with Supabase Auth. It validates supported actions and payload sizes, limits invoice images to JPEG/PNG/WebP and 5 MB in the UI, and does not return raw Gemini provider errors.
 
-Backend APIs are consumed by the frontend application via Supabase REST API and Edge Functions.
+The default CORS allowlist contains `https://prism-erp.vercel.app`, `http://localhost:3000`, and `http://localhost:5173`. Configure `AI_ALLOWED_ORIGINS` as a comma-separated function secret if your app is hosted elsewhere.
 
-## Support
+## Database and RLS status
 
-For issues or questions, please refer to the main repository issues page.
+No SQL migration files are currently tracked under `backend/supabase/migrations`. The existing frontend still depends on the configured Supabase project and its deployed schema/RLS policies. Version and audit those policies before treating the repository as a reproducible production backend.

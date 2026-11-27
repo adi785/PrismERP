@@ -1,16 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
-import { TrendingUp, TrendingDown, Sparkles, Loader2, MessageSquare, RefreshCw, ShieldCheck, FileSearch, ServerCrash, Key, Printer, Lock, Scale } from 'lucide-react';
+import { TrendingUp, TrendingDown, ShieldCheck, FileSearch, Printer, Lock, Scale } from 'lucide-react';
 import { Ledger } from '../types';
-import { GoogleGenAI } from "@google/genai";
-import MarkdownRenderer from './MarkdownRenderer';
 import { triggerPrint } from '../utils/exportUtils';
 
 const Reports: React.FC<{ store: any }> = ({ store }) => {
   const [activeReport, setActiveReport] = useState<'PL' | 'BS'>('PL');
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [needsKey, setNeedsKey] = useState(false);
   
   const { ledgers, company, vouchers } = store;
 
@@ -33,26 +28,6 @@ const Reports: React.FC<{ store: any }> = ({ store }) => {
 
     return { incomes, expenses, assets, liabilities, equity, totalIncome, totalExpense, totalAssets, totalLiabilities, totalEquity, netProfit, hasData };
   }, [ledgers, vouchers]);
-
-  const handleAIAnalysis = async () => {
-    if (!financialData.hasData) return;
-    setIsAnalyzing(true);
-    setAiSummary(null);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Financial Summary for ${company.name}: REVENUE: ₹${financialData.totalIncome}, EXPENSE: ₹${financialData.totalExpense}, NET: ₹${financialData.netProfit}. Analysis needed.`;
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: { systemInstruction: "Provide a concise financial health briefing for the CEO. ALWAYS use Indian Rupee (INR / ₹) for currency. Use the Indian numbering system (Lakhs, Crores). Use professional corporate language." }
-      });
-      setAiSummary(response.text || "Analysis complete.");
-    } catch (err: any) {
-      setAiSummary(`ERROR: ${err.message}`);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">

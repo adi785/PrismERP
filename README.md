@@ -44,7 +44,7 @@ Try the live demo: https://prism-erp.vercel.app
 - State: Zustand
 - Styling: Tailwind CSS
 - Backend: Supabase (Postgres + Auth + Edge Functions)
-- AI: Google Gemini (@google/genai)
+- AI: Google Gemini via authenticated Supabase Edge Function (server-side key)
 - Charts: Recharts
 
 ---
@@ -53,8 +53,8 @@ Try the live demo: https://prism-erp.vercel.app
 
 ```
 PrismERP/
-├── frontend/        # React app (UI, components, pages)
-├── backend/         # Supabase migrations & edge functions
+├── src/             # React app (UI, components, services)
+├── backend/supabase # Supabase config & Edge Functions
 ├── screenshots/     # App screenshots for docs & marketing
 ├── README.md        # Project README
 └── ARCHITECTURE.md  # Deep-dive architecture & design
@@ -82,7 +82,7 @@ Key pieces:
 - vouchers & voucher_entries — transactions and line items
 - stock_items, inventory_movements, batch_tracking — inventory & tracking
 
-(See backend migrations for full SQL and constraints.)
+(The deployed Supabase schema is not yet versioned as SQL migrations in this repository; see backend/README.md.)
 
 ---
 
@@ -105,15 +105,13 @@ Inventory
 - POST /rest/v1/inventory_movements
 
 AI Endpoints
-- POST /functions/v1/analyze-financials
-- POST /functions/v1/forecast-trends
-- POST /functions/v1/detect-anomalies
+- POST /functions/v1/gemini-proxy (authenticated; action-validated)
 
 ---
 
 ## ⚡ Quick start (local)
 
-Prerequisites: Node 18+, npm or yarn, Supabase account, Google Gemini API key
+Prerequisites: Node 18+, npm or yarn, and a Supabase project. Gemini credentials belong only in Supabase Edge Function secrets.
 
 1. Clone
 ```bash
@@ -126,16 +124,14 @@ cd PrismERP
 npm install
 ```
 
-3. Configure env
-```bash
-cp .env.example .env.local
-# update .env.local with your Supabase + Gemini credentials
-```
+3. Configure Supabase
+
+The current Supabase project URL and public anon key are configured in `src/services/supabase.ts`. Replace them with your own project's values when self-hosting. Never put a service-role key or Gemini API key in frontend code or Vite environment variables.
 
 4. Run
 ```bash
 npm run dev
-# open http://localhost:5173
+# open http://localhost:3000
 ```
 
 5. Build for production
@@ -148,11 +144,29 @@ npm run preview
 
 ## ✅ Development notes
 
-- Migrations located at: backend/supabase/migrations/
+- SQL migrations are not currently tracked under backend/supabase/migrations/
 - Use Supabase dashboard to inspect tables & policies
 - Edge functions live in backend/supabase/functions/
 
 ---
+
+## 🔐 Secure AI setup
+
+AI Analyst, Prism AI chat, and purchase-invoice OCR call the authenticated `gemini-proxy` Supabase Edge Function. The Gemini key is read only by the function at runtime.
+
+From the repository root:
+
+```bash
+cd backend
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase secrets set GEMINI_API_KEY=<your-gemini-api-key>
+supabase functions deploy gemini-proxy
+```
+
+The function requires a signed-in Supabase user and keeps JWT verification enabled. Financial summaries and invoice images submitted to AI features are sent to Google Gemini for processing; enable these features only when your organization permits that data transfer. Its default browser-origin allowlist includes the production app and local Vite ports. If your deployment uses another origin, set `AI_ALLOWED_ORIGINS` as a comma-separated Supabase function secret.
+
+If a Gemini key was previously injected into a Vite build, rotate that key in Google AI Studio before configuring the replacement as a Supabase secret. Never use `VITE_GEMINI_API_KEY` or define a Gemini key in `vite.config.ts`.
 
 ## 🤝 Contributing
 
