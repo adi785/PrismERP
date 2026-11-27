@@ -49,7 +49,7 @@ Deno.serve(async (request: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: authorization } },
     });
-    const { data: { user }, error } = await authClient.auth.getUser();
+    const { data: { user }, error } = await authClient.auth.getUser(authorization.slice(7));
     if (error || !user) return jsonResponse({ error: 'A valid signed-in user session is required.' }, 401, cors);
   } catch {
     return jsonResponse({ error: 'Unable to verify the user session.' }, 401, cors);
