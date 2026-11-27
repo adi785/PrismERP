@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { X, Send, Sparkles, Loader2, Bot, Minimize2, Maximize2, ShieldCheck, Key } from 'lucide-react';
+import { X, Send, Sparkles, Loader2, Bot, Minimize2, Maximize2, ShieldCheck } from 'lucide-react';
 import MarkdownRenderer from './MarkdownRenderer';
+import { invokeAI } from '../services/ai';
 
 const FloatingAssistant: React.FC<{ store: any }> = ({ store }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,13 +14,16 @@ const FloatingAssistant: React.FC<{ store: any }> = ({ store }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const checkKeyState = async () => {
-    const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY);
-    const hasSelectedKey = await (window as any).aistudio?.hasSelectedApiKey();
-    setNeedsKey(!apiKey && !hasSelectedKey);
+    try {
+      await invokeAI<{ ok: boolean }>('health');
+      setNeedsKey(false);
+    } catch {
+      setNeedsKey(true);
+    }
   };
 
   useEffect(() => {
-    checkKeyState();
+    if (isOpen) void checkKeyState();
   }, [isOpen]);
 
   useEffect(() => {
@@ -30,48 +33,30 @@ const FloatingAssistant: React.FC<{ store: any }> = ({ store }) => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
-
+    if (!input.trim() || needsKey) return;
     const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setLoading(true);
-
     const { ledgers, stats, company } = store;
-    const topBalances = ledgers
+    const topBalances = [...ledgers]
       .sort((a: any, b: any) => Math.abs(b.currentBalance) - Math.abs(a.currentBalance))
       .slice(0, 8)
-      .map((l: any) => `${l.name}: ₹${l.currentBalance.toLocaleString()}`)
+      .map((l: any) => l.name + ': ₹' + l.currentBalance.toLocaleString())
       .join(', ');
-
-    const context = `CONTEXT: ${company.name}. Sales: ₹${stats.totalSales}, Cash: ₹${stats.cashBalance}, Bank: ₹${stats.bankBalance}. Key Accounts: ${topBalances}.`;
-
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [...messages.map(m => m.text), `REAL-TIME DATA: ${context}\n\nUSER: ${userMsg}`].join('\n'),
-        config: {
-          systemInstruction: `You are the PrismERP Virtual Assistant. You assist ${store.user?.name} (${store.user?.role}). ALWAYS use Indian Rupee (INR / ₹) for currency. Use the Indian numbering system (Lakhs, Crores). Be concise and professional. Use Markdown for formatting. If the user asks about balances, use the provided REAL-TIME DATA.`,
-          temperature: 0.7,
-        }
+      const response = await invokeAI<{ text: string }>('assistant', {
+        message: userMsg,
+        history: messages.slice(-8),
+        context: { companyName: company.name, stats: { sales: stats.totalSales, cashBalance: stats.cashBalance, bankBalance: stats.bankBalance }, topBalances },
       });
-      setMessages(prev => [...prev, { role: 'model', text: response.text || "No response." }]);
-    } catch (err: any) {
-      if (err.message?.includes("Requested entity was not found")) {
-        setNeedsKey(true);
-        setMessages(prev => [...prev, { role: 'model', text: "AI requires a valid API Key. Please click the key icon above." }]);
-      } else {
-        setMessages(prev => [...prev, { role: 'model', text: "Connection error: " + err.message }]);
-      }
+      setMessages(prev => [...prev, { role: 'model', text: response.text || 'No response.' }]);
+    } catch {
+      setNeedsKey(true);
+      setMessages(prev => [...prev, { role: 'model', text: 'Secure AI service is unavailable. Ask your administrator to deploy the gemini-proxy Edge Function and configure its Supabase secret.' }]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSelectKey = async () => {
-    await (window as any).aistudio?.openSelectKey();
-    setNeedsKey(false);
   };
 
   if (!isOpen) {
@@ -89,11 +74,10 @@ const FloatingAssistant: React.FC<{ store: any }> = ({ store }) => {
           <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg"><Sparkles size={20} className="text-white" /></div>
           <div>
             <h3 className="text-sm font-black text-white uppercase tracking-widest">Prism AI</h3>
-            <span className={`text-[9px] font-black uppercase ${needsKey ? 'text-amber-500' : 'text-emerald-500'}`}>{needsKey ? 'Needs Key' : 'Online'}</span>
+            <span className={`text-[9px] font-black uppercase ${needsKey ? 'text-amber-500' : 'text-emerald-500'}`}>{needsKey ? 'Unavailable' : 'Online'}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {needsKey && <button onClick={handleSelectKey} className="p-2 text-amber-400 hover:bg-white/10 rounded-lg"><Key size={16} /></button>}
           <button onClick={() => setIsMinimized(!isMinimized)} className="p-2 text-slate-400 hover:bg-white/10 rounded-lg">{isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}</button>
           <button onClick={() => setIsOpen(false)} className="p-2 text-slate-400 hover:text-rose-400"><X size={20} /></button>
         </div>
@@ -103,10 +87,10 @@ const FloatingAssistant: React.FC<{ store: any }> = ({ store }) => {
         <>
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 custom-scrollbar">
             {needsKey && messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
-                 <div className="p-4 bg-amber-50 rounded-2xl text-amber-600"><Key size={32} /></div>
-                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">AI Setup Required</p>
-                 <button onClick={handleSelectKey} className="px-6 py-3 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">Select Key</button>
+              <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3">
+                <div className="p-4 bg-amber-50 rounded-2xl text-amber-700"><ShieldCheck size={28} /></div>
+                <p className="text-sm font-semibold text-slate-700">Secure AI service unavailable</p>
+                <p className="text-xs text-slate-500 leading-relaxed">The administrator must deploy the authenticated gemini-proxy function and configure the Gemini secret in Supabase.</p>
               </div>
             )}
             {!needsKey && messages.length === 0 && (

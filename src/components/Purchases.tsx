@@ -4,7 +4,7 @@ import { Save, Plus, Trash2, Printer, CheckCircle2, ChevronDown, FileText, Loade
 import { StockItem, Ledger, InventoryMovement } from '../types';
 import { triggerPrint, numberToWords } from '../utils/exportUtils';
 import { splitTaxAmount } from '../utils/voucherValidation.js';
-import { GoogleGenAI } from "@google/genai";
+import { invokeAI } from '../services/ai';
 
 interface PurchaseLineItem {
   id: string; 
@@ -21,6 +21,13 @@ interface PurchaseLineItem {
   trackingType: 'none' | 'batch' | 'serial';
   trackingDetails: { identifier: string; expiry?: string; }[];
 }
+
+const readFileAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Unable to read invoice image.'));
+  reader.onerror = () => reject(reader.error || new Error('Unable to read invoice image.'));
+  reader.readAsDataURL(file);
+});
 
 const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, onComplete }) => {
   const [vendor, setVendor] = useState({ name: '', ledgerId: '', billNo: '' });
@@ -76,65 +83,39 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
 
   const handleAIScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { alert('Choose a JPEG, PNG, or WebP invoice image.'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert('Invoice images must be 5 MB or smaller.'); return; }
     setIsScanning(true);
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64Data = (reader.result as string).split(',')[1];
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: {
-            parts: [
-              { inlineData: { data: base64Data, mimeType: file.type } },
-              { text: `Extract data from this purchase invoice. Return ONLY JSON matching this structure: { "billNo": string, "vendorName": string, "items": Array<{ "name": string, "qty": number, "rate": number, "gstRate": number }> }. Context: ${JSON.stringify(store.stockItems.map((s:any) => ({id: s.id, name: s.name})))}` }
-            ]
-          }
-        });
-
-        let text = response.text || '{}';
-        // Cleanup JSON markdown if present
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        const result = JSON.parse(text);
-        
-        if (result.billNo) setVendor(v => ({ ...v, billNo: result.billNo }));
-        
-        if (result.items && Array.isArray(result.items)) {
-          const newItems = result.items.map((aiItem: any) => {
-            // Fuzzy match logic
-            const matchedStock = store.stockItems.find((s: any) => 
-              s.name.toLowerCase().includes(aiItem.name.toLowerCase()) ||
-              aiItem.name.toLowerCase().includes(s.name.toLowerCase())
-            );
-
-            const base = {
-              id: Math.random().toString(),
-              itemId: matchedStock?.id || '',
-              name: matchedStock?.name || aiItem.name,
-              sku: matchedStock?.sku || 'AI-MAPPED',
-              hsn: matchedStock?.hsn || '9999',
-              qty: Math.max(0, aiItem.qty || 1),
-              rate: Math.max(0, aiItem.rate || 0),
-              gstRate: Math.max(0, aiItem.gstRate || matchedStock?.gstRate || 18),
-              trackingType: matchedStock?.trackingType || 'none',
-              trackingDetails: [] as any[]
-            };
-
-            if (base.trackingType === 'batch') base.trackingDetails = [{ identifier: '', expiry: '' }];
-            else if (base.trackingType === 'serial') base.trackingDetails = Array.from({ length: base.qty }, () => ({ identifier: '' }));
-
-            return calculateLine(base);
-          });
-          setItems(newItems);
-        }
-      };
-    } catch (err) {
-      console.error("AI Scan Failed:", err);
-      alert("AI Scan failed. Ensure the image is clear and you have a valid internet connection.");
+      const dataUrl = await readFileAsDataUrl(file);
+      const imageBase64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      if (!imageBase64) throw new Error('Unable to read invoice image.');
+      const response = await invokeAI<{ invoice: { billNo: string; vendorName: string; items: Array<{ name: string; qty: number; rate: number; gstRate: number }> } }>('invoice-extraction', {
+        imageBase64, mimeType: file.type,
+        stockItems: store.stockItems.slice(0, 100).map((item: any) => ({ name: item.name })),
+      });
+      const result = response.invoice;
+      if (result.billNo) setVendor(v => ({ ...v, billNo: result.billNo }));
+      if (result.vendorName) setVendor(v => ({ ...v, name: result.vendorName }));
+      const newItems = result.items.map((aiItem) => {
+        const matchedStock = store.stockItems.find((stock: any) => stock.name.toLowerCase().includes(aiItem.name.toLowerCase()) || aiItem.name.toLowerCase().includes(stock.name.toLowerCase()));
+        const base = {
+          id: Math.random().toString(36).slice(2), itemId: matchedStock?.id || '', name: matchedStock?.name || aiItem.name,
+          sku: matchedStock?.sku || 'AI-MAPPED', hsn: matchedStock?.hsn || '9999',
+          qty: Math.max(0, aiItem.qty || 1), rate: Math.max(0, aiItem.rate || 0),
+          gstRate: Math.max(0, aiItem.gstRate ?? matchedStock?.gstRate ?? 18),
+          trackingType: matchedStock?.trackingType || 'none', trackingDetails: [] as any[],
+        };
+        if (base.trackingType === 'batch') base.trackingDetails = [{ identifier: '', expiry: '' }];
+        else if (base.trackingType === 'serial') base.trackingDetails = Array.from({ length: base.qty }, () => ({ identifier: '' }));
+        return calculateLine(base);
+      });
+      setItems(newItems);
+    } catch (err: unknown) {
+      console.error('AI invoice scan failed.');
+      alert(err instanceof Error ? err.message : 'AI scan failed. Enter the invoice details manually.');
     } finally {
       setIsScanning(false);
     }
@@ -232,7 +213,7 @@ const Purchases: React.FC<{ store: any, onComplete: () => void }> = ({ store, on
               </div>
             </div>
             <div className="flex items-center gap-4 w-full md:w-auto">
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAIScan} />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp" onChange={handleAIScan} />
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isScanning}
