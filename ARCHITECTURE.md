@@ -2,180 +2,58 @@
 
 ## System Overview
 
-PrismERP is a full-stack ERP system built on modern web technologies. This document provides technical deep-dives into the architecture, data flow, and integration patterns.
-
----
-
-## Table of Contents
-
-1. [Frontend Architecture](#frontend-architecture)
-2. [Backend Architecture](#backend-architecture)
-3. [Data Flow](#data-flow)
-4. [State Management](#state-management)
-5. [API Integration](#api-integration)
-6. [Security Architecture](#security-architecture)
-7. [Deployment Architecture](#deployment-architecture)
-
----
+PrismERP is a React, TypeScript, Vite, and Supabase ERP. Supabase provides
+authentication, Postgres access, and server-side Edge Functions. Optional n8n
+workflows can orchestrate approved business events.
 
 ## Frontend Architecture
 
-### Technology Stack
-
-- **Framework**: React 18.3.1 (Hooks-based)
-- **Language**: TypeScript 5.8.2
-- **Build Tool**: Vite 6.2.0
-- **State**: Zustand
-- **UI**: Tailwind CSS
-- **Icons**: Lucide React
-- **Charts**: Recharts
-- **HTTP Client**: Supabase JS Client
-
-### Component Hierarchy
-
-```
-App.tsx (Root Container)
-├── ErrorBoundary (Error Handling)
-├── Sidebar Navigation
-│   ├── NavGroup (Grouped Navigation)
-│   └── NavItem (Individual Menu Items)
-├── Main Header
-│   ├── Quick Actions Menu
-│   └── Command Palette Toggle
-├── Main Content (Dynamic)
-│   ├── Dashboard
-│   ├── LedgerList
-│   ├── StockList
-│   ├── VoucherEntry
-│   ├── Billing
-│   ├── Purchases
-│   ├── ProductReturns
-│   ├── DayBook
-│   ├── Reports
-│   ├── TaxCenter
-│   ├── StockAdjustment
-│   ├── ImportCenter
-│   └── AIAnalyst
-├── FloatingAssistant (AI Chat)
-└── CommandPalette (Search & Navigation)
-```
-
----
+- React 18.3.1 with hooks
+- TypeScript 5.8 and Vite
+- Application state in the ERP store
+- Tailwind CSS UI
+- Supabase JS client for authentication and data access
 
 ## Backend Architecture
 
-### Supabase Infrastructure
+Supabase provides Postgres, Auth, and Edge Functions. The tracked AI gateway
+is `gemini-proxy`; the optional automation gateway is `n8n-event-relay`.
 
-Multi-tenant architecture with company-level data isolation and Row-Level Security (RLS).
+### n8n event relay
 
-#### Database Tables:
-- `companies` - Organization management
-- `users` - User profiles and roles
-- `ledgers` - Chart of accounts
-- `vouchers` - Transaction records
-- `stock_items` - Inventory catalog
-- `inventory_movements` - Stock tracking
-- `batch_tracking` - Batch/Serial management
+The frontend invokes the relay with the current Supabase user JWT. The
+function independently verifies that token using Supabase Auth, validates an
+allowlisted event name, enforces a bounded payload, and forwards a minimal
+event envelope to a configured HTTPS n8n webhook. The n8n URL and optional
+shared-secret header are stored as Supabase Function Secrets.
 
-#### Authentication
-- Email/password based with Supabase Auth
-- JWT tokens for session management
-- Automatic token refresh
+Allowlisted events:
+- `voucher.created`
+- `inventory.low_stock`
+- `report.daily_summary`
 
----
-
-## API Endpoints
-
-### REST API Base
-```
-/rest/v1/
-├── /auth/              - Authentication
-├── /companies/         - Company management
-├── /ledgers/          - General ledger
-├── /vouchers/         - Vouchers
-├── /stock_items/      - Inventory
-└── /reports/          - Financial reports
-```
-
-### Edge Functions
-
-`/functions/v1/gemini-proxy` is the tracked AI gateway for financial analysis, assistant chat, and invoice extraction.
-
-- Requires an authenticated Supabase user JWT (`verify_jwt = true`) and validates the session with Supabase Auth.
-- Reads `GEMINI_API_KEY` only from Supabase function secrets; the key is never injected into the Vite bundle.
-- Applies action-specific input validation, bounded history/context, image MIME/size limits, and fixed server-side system instructions.
-- AI output is advisory. Invoice extraction only pre-fills a draft and must be reviewed before the user saves it.
-
-Database migration files and the previously documented `analyze-financials`, `forecast-trends`, and `detect-anomalies` functions are not currently tracked in this repository.
-
----
+See [docs/n8n/README.md](docs/n8n/README.md) for setup and an importable
+starter workflow. Event emission must be added at confirmed persistence
+success paths; the integration does not claim UI events are already wired.
 
 ## Security Architecture
 
-### Authentication Flow
-1. User credentials validation
-2. JWT token issuance
-3. Session creation
-4. Company data initialization
-5. Authenticated user access
-
-### Authorization
-- Role-Based Access Control (RBAC)
-- Row-Level Security (RLS) policies
-- Multi-tenant data isolation
-- Gemini API key stored only as a Supabase Edge Function secret; never bundled by Vite
-
-### Data Protection
-- AES-256 encryption at rest
-- TLS 1.3 encryption in transit
-- Secure session handling
-- Audit logging
-
----
+- Supabase JWT verification and explicit user lookup for the relay
+- Database access remains subject to Supabase RLS
+- The n8n relay does not use a service-role credential
+- n8n endpoint and shared secret are server-side only
+- Event allowlisting and payload-size limits reduce unintended data transfer
+- Financial and personal data should be minimized and transferred only with
+  organizational approval
 
 ## Deployment Architecture
 
-### Frontend (Vercel)
-- Automatic deployment on git push
-- CDN distribution (49+ regions)
-- SSL certificate management
-- Environment variable injection
+- Frontend: Vercel
+- Backend: Supabase (Postgres, Auth, Edge Functions)
+- Optional workflow orchestration: self-hosted or managed n8n endpoint
 
-### Backend (Supabase)
-- PostgreSQL database
-- Real-time subscriptions
-- Edge Functions (Deno)
-- Automatic backups (24/7)
-- DDoS protection
+## Operational Considerations
 
----
-
-## Performance Optimization
-
-### Frontend
-- Code splitting with lazy loading
-- Tailwind CSS optimization
-- Tree-shaking unused code
-- Component memoization
-
-### Backend
-- Database indexing
-- Query optimization
-- Connection pooling
-- Response caching
-
----
-
-## Future Enhancements
-
-1. Offline support with Service Workers
-2. Mobile application (React Native)
-3. Advanced ML-based predictions
-4. Third-party integration APIs
-5. Webhook support
-6. Multi-currency full support
-7. Advanced audit trails
-
----
-
-**For more details, see README.md**
+n8n is an optional downstream integration. A webhook failure must not undo a
+saved ERP transaction. Use idempotency keys, retry/dead-letter handling,
+restricted n8n access, and scoped credentials for downstream actions.
