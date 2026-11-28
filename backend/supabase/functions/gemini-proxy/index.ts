@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.0';
 import { buildAIRequest, extractGeminiText, parseInvoiceExtraction } from '../_shared/aiProxy.js';
+import { readBoundedRequestBody } from '../_shared/requestBody.js';
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://prism-erp.vercel.app',
@@ -63,12 +64,12 @@ Deno.serve(async (request: Request) => {
 
   let rawBody: string;
   try {
-    rawBody = await request.text();
-  } catch {
+    rawBody = await readBoundedRequestBody(request, 8_000_000);
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return jsonResponse({ error: 'Request payload is too large.' }, 413, cors);
+    }
     return jsonResponse({ error: 'Unable to read request body.' }, 400, cors);
-  }
-  if (new TextEncoder().encode(rawBody).byteLength > 8_000_000) {
-    return jsonResponse({ error: 'Request payload is too large.' }, 413, cors);
   }
 
   let body: unknown;
