@@ -1,5 +1,5 @@
 /**
- * Read a request body without ever buffering more than `maxBytes`.
+ * Read a request body without ever buffering more than \`maxBytes\`.
  * Content-Length is an early rejection hint only; the streamed byte count is authoritative.
  */
 export async function readBoundedRequestBody(request, maxBytes) {
@@ -10,7 +10,7 @@ export async function readBoundedRequestBody(request, maxBytes) {
   const contentLength = request.headers.get('content-length');
   if (contentLength !== null) {
     const normalizedLength = contentLength.trim();
-    if (!/^\\d+$/.test(normalizedLength)) {
+    if (!/^\d+$/.test(normalizedLength)) {
       throw new TypeError('Content-Length must be a non-negative integer.');
     }
     if (Number(normalizedLength) > maxBytes) {
