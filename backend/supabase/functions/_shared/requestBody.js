@@ -1,6 +1,6 @@
 /**
- * Read a request body without ever buffering more than \`maxBytes\`.
- * Content-Length is an early rejection hint only; the streamed byte count is authoritative.
+ * Read a request body with a hard byte limit.
+ * Content-Length is an early rejection hint only; streamed bytes are authoritative.
  */
 export async function readBoundedRequestBody(request, maxBytes) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
@@ -21,8 +21,9 @@ export async function readBoundedRequestBody(request, maxBytes) {
   if (!request.body) return '';
 
   const reader = request.body.getReader();
-  const chunks = [];
+  const decoder = new TextDecoder('utf-8', { fatal: true });
   let totalBytes = 0;
+  let bodyText = '';
 
   try {
     while (true) {
@@ -41,22 +42,26 @@ export async function readBoundedRequestBody(request, maxBytes) {
         }
         throw new RangeError('Request payload is too large.');
       }
-      chunks.push(value);
+
+      try {
+        bodyText += decoder.decode(value, { stream: true });
+      } catch {
+        try {
+          await reader.cancel();
+        } catch {
+          // Invalid input is already rejected; cancellation is best-effort.
+        }
+        throw new TypeError('Request body must be valid UTF-8.');
+      }
     }
+
+    try {
+      bodyText += decoder.decode();
+    } catch {
+      throw new TypeError('Request body must be valid UTF-8.');
+    }
+    return bodyText;
   } finally {
     reader.releaseLock();
-  }
-
-  const bytes = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    throw new TypeError('Request body must be valid UTF-8.');
   }
 }
