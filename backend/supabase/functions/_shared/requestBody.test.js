@@ -22,6 +22,18 @@ test('counts UTF-8 bytes rather than JavaScript characters', async () => {
   await assert.rejects(readBoundedRequestBody(request('₹'), 2), RangeError);
 });
 
+test('decodes UTF-8 sequences split across streamed chunks', async () => {
+  const encoded = new TextEncoder().encode('₹');
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoded.slice(0, 1));
+      controller.enqueue(encoded.slice(1));
+      controller.close();
+    },
+  });
+  assert.equal(await readBoundedRequestBody(request(body), 3), '₹');
+});
+
 test('rejects an oversized Content-Length before consuming the body', async () => {
   let consumed = false;
   const body = new ReadableStream({
