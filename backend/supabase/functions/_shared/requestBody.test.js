@@ -55,13 +55,24 @@ test('cancels a chunked stream as soon as the streamed limit is exceeded', async
   assert.equal(cancelled, true);
 });
 
-test('enforces the streamed limit even when Content-Length is missing', async () => {
+test('enforces the streamed limit when Content-Length is missing or understated', async () => {
   await assert.rejects(readBoundedRequestBody(request('123456'), 5), RangeError);
+  await assert.rejects(
+    readBoundedRequestBody(request('123456', { 'content-length': '1' }), 5),
+    RangeError,
+  );
 });
 
 test('rejects malformed UTF-8 instead of silently replacing bytes', async () => {
   const body = new Uint8Array([0xc3, 0x28]);
   await assert.rejects(readBoundedRequestBody(request(body), 2), /valid UTF-8/);
+});
+
+test('rejects malformed Content-Length values', async () => {
+  await assert.rejects(
+    readBoundedRequestBody(request('hello', { 'content-length': '5x' }), 10),
+    /Content-Length must be a non-negative integer/,
+  );
 });
 
 test('accepts an empty request body', async () => {
